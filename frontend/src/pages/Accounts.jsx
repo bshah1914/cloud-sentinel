@@ -16,7 +16,7 @@ export default function Accounts() {
   const [loading, setLoading] = useState(true);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showAddCIDR, setShowAddCIDR] = useState(false);
-  const [newAccount, setNewAccount] = useState({ id: '', name: '', default: false });
+  const [newAccount, setNewAccount] = useState({ id: '', name: '', provider: 'aws', default: false });
   const [newCIDR, setNewCIDR] = useState({ cidr: '', name: '' });
   const [error, setError] = useState('');
 
@@ -38,7 +38,7 @@ export default function Accounts() {
     e.preventDefault();
     try {
       await addAccount(newAccount);
-      setNewAccount({ id: '', name: '', default: false });
+      setNewAccount({ id: '', name: '', provider: 'aws', default: false });
       setShowAddAccount(false);
       await load();
       // Sync the Layout/Topbar/Scan account lists
@@ -50,7 +50,8 @@ export default function Accounts() {
 
   const handleRemoveAccount = async (id) => {
     if (!confirm('Offboard this account?\n\nThis will permanently delete ALL collected scan data for this account. This action cannot be undone.')) return;
-    await removeAccount(id);
+    const acct = accounts.find((a) => a.id === id);
+    await removeAccount(id, acct?.provider || 'aws');
     await load();
     // Sync the Layout/Topbar/Scan account lists
     await refreshAccounts();
@@ -79,7 +80,7 @@ export default function Accounts() {
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-2xl font-bold">Account Management</h1>
-        <p className="text-text-muted text-sm mt-1">Manage AWS accounts and trusted CIDR ranges</p>
+        <p className="text-text-muted text-sm mt-1">Manage cloud accounts and trusted CIDR ranges</p>
       </motion.div>
 
       {error && (
@@ -92,7 +93,7 @@ export default function Accounts() {
 
       {/* Accounts Section */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">AWS Accounts ({accounts.length})</h2>
+        <h2 className="text-lg font-semibold">Cloud Accounts ({accounts.length})</h2>
         <button
           onClick={() => setShowAddAccount(!showAddAccount)}
           className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark rounded-lg text-sm font-medium transition-colors"
@@ -111,7 +112,19 @@ export default function Accounts() {
             onSubmit={handleAddAccount}
             className="bg-surface-light border border-border rounded-xl p-5 space-y-4 overflow-hidden"
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs text-text-muted mb-1.5">Provider</label>
+                <select
+                  value={newAccount.provider}
+                  onChange={(e) => setNewAccount({ ...newAccount, provider: e.target.value })}
+                  className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="aws">AWS</option>
+                  <option value="azure">Azure</option>
+                  <option value="gcp">GCP</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-xs text-text-muted mb-1.5">Account ID</label>
                 <input
@@ -167,7 +180,13 @@ export default function Accounts() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">{acct.name}</h3>
-                  <p className="text-xs text-text-muted font-mono">{acct.id}</p>
+                  <p className="text-xs text-text-muted font-mono">{acct.id}
+                    <span className={`ml-2 px-1.5 py-0.5 rounded text-xs font-medium ${
+                      acct.provider === 'azure' ? 'bg-blue-500/15 text-blue-400' :
+                      acct.provider === 'gcp' ? 'bg-sky-500/15 text-sky-400' :
+                      'bg-orange-500/15 text-orange-400'
+                    }`}>{(acct.provider || 'aws').toUpperCase()}</span>
+                  </p>
                 </div>
               </div>
               <button

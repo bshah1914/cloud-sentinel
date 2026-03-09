@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Overview from './pages/Overview';
 import Dashboard from './pages/Dashboard';
 import Accounts from './pages/Accounts';
 import Audit from './pages/Audit';
@@ -9,6 +10,7 @@ import Resources from './pages/Resources';
 import IAM from './pages/IAM';
 import SecurityGroups from './pages/SecurityGroups';
 import Scan from './pages/Scan';
+import Users from './pages/Users';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -27,13 +29,15 @@ function ProtectedRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<Overview />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/audit" element={<Audit />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/iam" element={<IAM />} />
         <Route path="/security-groups" element={<SecurityGroups />} />
         <Route path="/scan" element={<Scan />} />
+        <Route path="/users" element={<Users />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -4,7 +4,13 @@ import { Clock, Wifi, WifiOff, LogOut, ShieldCheck } from 'lucide-react';
 import { getHealth } from '../api';
 import { useAuth } from '../auth';
 
-export default function Topbar({ account, onAccountChange, accounts }) {
+const PROVIDER_COLORS = {
+  aws: { bg: 'bg-orange-500/15', text: 'text-orange-400', label: 'AWS' },
+  azure: { bg: 'bg-blue-500/15', text: 'text-blue-400', label: 'Azure' },
+  gcp: { bg: 'bg-sky-500/15', text: 'text-sky-400', label: 'GCP' },
+};
+
+export default function Topbar({ account, provider, onAccountChange, accounts }) {
   const { user, logout } = useAuth();
   const [health, setHealth] = useState(null);
   const [time, setTime] = useState(new Date());
@@ -15,6 +21,8 @@ export default function Topbar({ account, onAccountChange, accounts }) {
     return () => clearInterval(t);
   }, []);
 
+  const providerStyle = PROVIDER_COLORS[provider] || PROVIDER_COLORS.aws;
+
   return (
     <header className="h-16 glass border-b border-border flex items-center justify-between px-6 sticky top-0 z-40">
       <div className="flex items-center gap-4">
@@ -24,9 +32,16 @@ export default function Topbar({ account, onAccountChange, accounts }) {
           className="bg-surface-lighter border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary transition-colors cursor-pointer"
         >
           {accounts.map((a) => (
-            <option key={a.name} value={a.name}>{a.name} ({a.id})</option>
+            <option key={`${a.provider}-${a.name}`} value={a.name}>
+              [{(a.provider || 'aws').toUpperCase()}] {a.name} ({a.id})
+            </option>
           ))}
         </select>
+        {provider && (
+          <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${providerStyle.bg} ${providerStyle.text}`}>
+            {providerStyle.label}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-5">
@@ -35,11 +50,7 @@ export default function Topbar({ account, onAccountChange, accounts }) {
           {time.toLocaleTimeString()}
         </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center gap-2"
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
           {health ? (
             <div className="flex items-center gap-1.5 text-xs text-emerald-400">
               <Wifi className="w-3.5 h-3.5" />
@@ -54,10 +65,8 @@ export default function Topbar({ account, onAccountChange, accounts }) {
           )}
         </motion.div>
 
-        {/* Divider */}
         <div className="w-px h-6 bg-border" />
 
-        {/* User info + Logout */}
         {user && (
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">

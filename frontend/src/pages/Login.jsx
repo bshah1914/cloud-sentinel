@@ -67,7 +67,7 @@ export default function Login() {
             transition={{ delay: 0.2 }}
             className="text-3xl font-bold text-text"
           >
-            CloudMapper
+            CloudLunar
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}
@@ -75,7 +75,7 @@ export default function Login() {
             transition={{ delay: 0.3 }}
             className="text-text-muted text-sm mt-2"
           >
-            AWS Security Dashboard
+            Enterprise Cloud Security Platform
           </motion.p>
         </div>
 

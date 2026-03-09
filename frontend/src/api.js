@@ -17,7 +17,6 @@ async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 
   if (res.status === 401) {
-    // Token expired or invalid — clear and redirect to login
     localStorage.removeItem('cm_token');
     window.location.href = '/';
     throw new Error('Session expired. Please log in again.');
@@ -30,45 +29,70 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-// Health (public)
+// Health
 export const getHealth = () => request('/health');
 
-// Accounts
+// Providers
+export const getProviders = () => request('/providers');
+export const validateCredentials = (providerId, credentials) =>
+  request(`/providers/${providerId}/validate`, { method: 'POST', body: JSON.stringify(credentials) });
+export const getProviderRegions = (providerId) => request(`/providers/${providerId}/regions`);
+
+// Accounts (multi-cloud)
 export const getAccounts = () => request('/accounts');
 export const addAccount = (data) => request('/accounts', { method: 'POST', body: JSON.stringify(data) });
-export const removeAccount = (id) => request(`/accounts/${id}`, { method: 'DELETE' });
+export const removeAccount = (id, provider = 'aws') => request(`/accounts/${id}?provider=${provider}`, { method: 'DELETE' });
 
 // CIDRs
 export const getCIDRs = () => request('/cidrs');
 export const addCIDR = (data) => request('/cidrs', { method: 'POST', body: JSON.stringify(data) });
 export const removeCIDR = (cidr) => request(`/cidrs/${encodeURIComponent(cidr)}`, { method: 'DELETE' });
 
-// Dashboard
-export const getDashboard = (account) => request(`/dashboard/${account}`);
+// Dashboard (multi-cloud)
+export const getDashboard = (account, provider) =>
+  provider ? request(`/dashboard/${provider}/${account}`) : request(`/dashboard/${account}`);
+export const getMultiCloudOverview = () => request('/overview');
 
-// Resources
-export const getResources = (account) => request(`/resources/${account}`);
+// Resources (provider-specific or legacy)
+export const getResources = (account, provider) =>
+  provider ? request(`/${provider}/resources/${account}`) : request(`/resources/${account}`);
 
 // IAM
-export const getIAM = (account) => request(`/iam/${account}`);
+export const getIAM = (account, provider) =>
+  provider === 'aws' ? request(`/aws/iam/${account}`) : request(`/iam/${account}`);
 
-// Security Groups
-export const getSecurityGroups = (account) => request(`/security-groups/${account}`);
+// Security Groups / NSGs / Firewalls
+export const getSecurityGroups = (account, provider) => {
+  if (provider === 'azure') return request(`/azure/nsgs/${account}`);
+  if (provider === 'gcp') return request(`/gcp/firewalls/${account}`);
+  return request(`/security-groups/${account}`);
+};
 
 // Audit
 export const getAuditConfig = () => request('/audit/config');
-export const runAudit = (account) => request(`/audit/run/${account}`, { method: 'POST' });
+export const runAudit = (account, provider) =>
+  provider ? request(`/${provider}/audit/${account}`, { method: 'POST' }) : request(`/audit/run/${account}`, { method: 'POST' });
 
-// Scan
-export const startScan = ({ accountName, awsAccessKeyId, awsSecretAccessKey, awsRegion }) =>
+// Scan (multi-cloud)
+export const startScan = ({ accountName, provider = 'aws', credentials = {}, region = 'all',
+                            awsAccessKeyId, awsSecretAccessKey, awsRegion }) =>
   request('/scan/start', {
     method: 'POST',
     body: JSON.stringify({
       account_name: accountName,
+      provider,
+      credentials: Object.keys(credentials).length > 0 ? credentials : undefined,
+      region: region || awsRegion || 'all',
+      // Legacy AWS fields
       aws_access_key_id: awsAccessKeyId || undefined,
       aws_secret_access_key: awsSecretAccessKey || undefined,
-      aws_region: awsRegion || 'us-east-1',
+      aws_region: awsRegion || undefined,
     }),
   });
 export const getScanStatus = (jobId) => request(`/scan/status/${jobId}`);
 export const getScanHistory = () => request('/scan/history');
+
+// Users (RBAC)
+export const getUsers = () => request('/users');
+export const createUser = (data) => request('/users', { method: 'POST', body: JSON.stringify(data) });
+export const deleteUser = (username) => request(`/users/${username}`, { method: 'DELETE' });

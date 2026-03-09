@@ -49,7 +49,7 @@ const RESOURCE_LABELS = {
 };
 
 export default function Dashboard() {
-  const { account, accounts } = useOutletContext();
+  const { account, provider, accounts } = useOutletContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -67,7 +67,7 @@ export default function Dashboard() {
     setError(null);
     setNoData(false);
     setData(null);
-    getDashboard(account)
+    getDashboard(account, provider)
       .then((res) => {
         setData(res);
         setNoData(false);

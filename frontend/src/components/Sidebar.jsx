@@ -3,20 +3,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
   LayoutDashboard, Users, ShieldCheck, Server, KeyRound,
-  ShieldAlert, ScanLine, Cloud, ChevronLeft, ChevronRight, Network
+  ShieldAlert, ScanLine, Cloud, ChevronLeft, ChevronRight,
+  Globe, UserCog, Layers
 } from 'lucide-react';
 
 const nav = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/', icon: LayoutDashboard, label: 'Overview' },
+  { to: '/dashboard', icon: Layers, label: 'Dashboard' },
   { to: '/accounts', icon: Users, label: 'Accounts' },
+  { to: '/scan', icon: ScanLine, label: 'Scans' },
   { to: '/audit', icon: ShieldCheck, label: 'Audit' },
   { to: '/resources', icon: Server, label: 'Resources' },
   { to: '/iam', icon: KeyRound, label: 'IAM' },
-  { to: '/security-groups', icon: ShieldAlert, label: 'Security Groups' },
-  { to: '/scan', icon: ScanLine, label: 'Scans' },
+  { to: '/security-groups', icon: ShieldAlert, label: 'Security' },
+  { to: '/users', icon: UserCog, label: 'Users' },
 ];
 
-export default function Sidebar({ collapsed, onToggle }) {
+const PROVIDER_COLORS = {
+  aws: '#FF9900',
+  azure: '#0078D4',
+  gcp: '#4285F4',
+};
+
+export default function Sidebar({ collapsed, onToggle, activeProvider }) {
   return (
     <motion.aside
       initial={false}
@@ -42,13 +51,37 @@ export default function Sidebar({ collapsed, onToggle }) {
                 exit={{ opacity: 0, x: -10 }}
                 className="whitespace-nowrap"
               >
-                <h1 className="text-sm font-bold text-text">CloudMapper</h1>
-                <p className="text-xs text-text-muted">AWS Security</p>
+                <h1 className="text-sm font-bold text-text">CloudLunar</h1>
+                <p className="text-xs text-text-muted">Enterprise Security</p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Provider indicator */}
+      {activeProvider && (
+        <div className="px-3 pt-3">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface/50 border border-border/50">
+            <span
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ background: PROVIDER_COLORS[activeProvider] || '#6366f1' }}
+            />
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-xs font-medium text-text uppercase"
+                >
+                  {activeProvider}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
@@ -56,6 +89,7 @@ export default function Sidebar({ collapsed, onToggle }) {
           <NavLink
             key={to}
             to={to}
+            end={to === '/'}
             className={({ isActive }) => clsx(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
               isActive

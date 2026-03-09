@@ -9,18 +9,19 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [activeAccount, setActiveAccount] = useState('');
+  const [activeProvider, setActiveProvider] = useState('aws');
 
   const refreshAccounts = useCallback(async () => {
     try {
       const res = await getAccounts();
       const accts = res.accounts || [];
       setAccounts(accts);
-      // If current active account was removed or doesn't exist, pick a new default
       if (accts.length > 0) {
         const stillExists = accts.find((a) => a.name === activeAccount);
         if (!stillExists) {
           const def = accts.find((a) => a.default) || accts[0];
           setActiveAccount(def.name);
+          setActiveProvider(def.provider || 'aws');
         }
       } else {
         setActiveAccount('');
@@ -38,13 +39,24 @@ export default function Layout() {
       if (accts.length > 0) {
         const def = accts.find((a) => a.default) || accts[0];
         setActiveAccount(def.name);
+        setActiveProvider(def.provider || 'aws');
       }
     }).catch(() => {});
   }, []);
 
+  const handleAccountChange = (name) => {
+    setActiveAccount(name);
+    const acct = accounts.find((a) => a.name === name);
+    if (acct) setActiveProvider(acct.provider || 'aws');
+  };
+
   return (
     <div className="min-h-screen bg-surface">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(!collapsed)}
+        activeProvider={activeProvider}
+      />
 
       <motion.div
         initial={false}
@@ -54,11 +66,18 @@ export default function Layout() {
       >
         <Topbar
           account={activeAccount}
-          onAccountChange={setActiveAccount}
+          provider={activeProvider}
+          onAccountChange={handleAccountChange}
           accounts={accounts}
         />
         <main className="flex-1 p-6">
-          <Outlet context={{ account: activeAccount, accounts, setActiveAccount, refreshAccounts }} />
+          <Outlet context={{
+            account: activeAccount,
+            provider: activeProvider,
+            accounts,
+            setActiveAccount: handleAccountChange,
+            refreshAccounts,
+          }} />
         </main>
       </motion.div>
     </div>
