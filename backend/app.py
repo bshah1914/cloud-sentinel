@@ -721,6 +721,74 @@ def run_audit_legacy(account_name: str, user: dict = Depends(get_current_user)):
     raise HTTPException(404, f"No data for account '{account_name}'")
 
 
+# ── REPORT EXPORT ────────────────────────────────────────────────
+from fastapi.responses import Response
+from report_generator import (
+    generate_dashboard_pdf, generate_dashboard_csv,
+    generate_audit_pdf, generate_audit_csv,
+)
+
+
+@app.get("/api/export/dashboard/{provider}/{account_name}")
+def export_dashboard(provider: str, account_name: str, format: str = "pdf",
+                     user: dict = Depends(get_current_user)):
+    """Export dashboard report as PDF or CSV."""
+    plugin = registry.get(provider)
+    if not plugin:
+        raise HTTPException(400, f"Unknown provider '{provider}'")
+    data = plugin.parser.parse_dashboard(account_name, ACCOUNT_DATA_DIR)
+    if not data or not data.get("region_matrix"):
+        raise HTTPException(404, f"No data for account '{account_name}'")
+
+    if format == "csv":
+        content = generate_dashboard_csv(data, account_name, provider)
+        return Response(content=content, media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="dashboard-{account_name}-{provider}.csv"'})
+    else:
+        content = generate_dashboard_pdf(data, account_name, provider)
+        return Response(content=content, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="dashboard-{account_name}-{provider}.pdf"'})
+
+
+@app.get("/api/export/audit/{account_name}")
+def export_audit(account_name: str, format: str = "pdf",
+                 user: dict = Depends(get_current_user)):
+    """Export audit report as PDF or CSV."""
+    # Auto-detect provider
+    detected_provider = "aws"
+    for pid in registry.provider_ids:
+        if (ACCOUNT_DATA_DIR / pid / account_name).exists():
+            detected_provider = pid
+            break
+
+    plugin = registry.get(detected_provider)
+    acct_dir = ACCOUNT_DATA_DIR / detected_provider / account_name
+    if not acct_dir.exists():
+        acct_dir = ACCOUNT_DATA_DIR / account_name
+    if not acct_dir.exists():
+        raise HTTPException(404, f"No data for account '{account_name}'")
+
+    findings = plugin.auditor.run_audit(account_name, ACCOUNT_DATA_DIR)
+    severity_counts = {}
+    for f in findings:
+        s = f.get("severity", "INFO")
+        severity_counts[s] = severity_counts.get(s, 0) + 1
+    audit_data = {
+        "account": account_name, "provider": detected_provider,
+        "total": len(findings), "findings": findings,
+        "summary": {s: severity_counts.get(s, 0) for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]},
+    }
+
+    if format == "csv":
+        content = generate_audit_csv(audit_data, account_name, detected_provider)
+        return Response(content=content, media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="audit-{account_name}.csv"'})
+    else:
+        content = generate_audit_pdf(audit_data, account_name, detected_provider)
+        return Response(content=content, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="audit-{account_name}.pdf"'})
+
+
 # ── HEALTH ───────────────────────────────────────────────────────
 @app.get("/api/health")
 def health():

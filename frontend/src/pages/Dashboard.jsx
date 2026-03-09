@@ -9,9 +9,9 @@ import {
   Server, Shield, Globe, Database, CloudLightning, Layers,
   AlertTriangle, MapPin, ScanLine, Plus, Users, Lock, Unlock,
   HardDrive, Network, Camera, Activity, CheckCircle2, XCircle,
-  Info, ChevronDown, ChevronUp
+  Info, ChevronDown, ChevronUp, Download, FileText
 } from 'lucide-react';
-import { getDashboard } from '../api';
+import { getDashboard, exportDashboard } from '../api';
 import StatCard from '../components/StatCard';
 import SecurityScore from '../components/SecurityScore';
 import Card from '../components/Card';
@@ -56,6 +56,17 @@ export default function Dashboard() {
   const [noData, setNoData] = useState(false);
   const [expandedRegion, setExpandedRegion] = useState(null);
   const [showAllPublicIps, setShowAllPublicIps] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async (format) => {
+    setExporting(true);
+    try {
+      await exportDashboard(account, provider || 'aws', format);
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+    setExporting(false);
+  };
 
   useEffect(() => {
     if (!account) {
@@ -189,6 +200,16 @@ export default function Dashboard() {
             {regions_scanned} region(s) scanned
             {collection_date && ` • Last updated: ${new Date(collection_date).toLocaleString()}`}
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => handleExport('csv')} disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-lighter hover:bg-surface-lighter/80 disabled:opacity-50 rounded-lg text-sm transition-colors">
+            <Download className="w-4 h-4" /> CSV
+          </button>
+          <button onClick={() => handleExport('pdf')} disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark disabled:opacity-50 rounded-lg text-sm font-medium transition-colors">
+            <FileText className="w-4 h-4" /> Export PDF
+          </button>
         </div>
       </motion.div>
 

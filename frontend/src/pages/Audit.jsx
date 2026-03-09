@@ -6,9 +6,9 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Play, Filter, ChevronDown, ChevronRight,
-  AlertTriangle, Search, Download
+  AlertTriangle, Search, Download, FileText
 } from 'lucide-react';
-import { runAudit } from '../api';
+import { runAudit, exportAudit } from '../api';
 import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
 import Loader from '../components/Loader';
@@ -109,9 +109,14 @@ export default function Audit() {
         </div>
         <div className="flex items-center gap-3">
           {results && (
-            <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-surface-lighter hover:bg-surface-lighter/80 rounded-lg text-sm transition-colors">
-              <Download className="w-4 h-4" /> Export CSV
-            </button>
+            <>
+              <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-surface-lighter hover:bg-surface-lighter/80 rounded-lg text-sm transition-colors">
+                <Download className="w-4 h-4" /> CSV
+              </button>
+              <button onClick={() => exportAudit(account, 'pdf')} className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark rounded-lg text-sm font-medium transition-colors">
+                <FileText className="w-4 h-4" /> Export PDF
+              </button>
+            </>
           )}
           <button
             onClick={handleRunAudit}

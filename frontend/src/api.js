@@ -92,6 +92,42 @@ export const startScan = ({ accountName, provider = 'aws', credentials = {}, reg
 export const getScanStatus = (jobId) => request(`/scan/status/${jobId}`);
 export const getScanHistory = () => request('/scan/history');
 
+// Report Export
+async function downloadFile(path, filename) {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('cm_token');
+    window.location.href = '/';
+    throw new Error('Session expired');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export const exportDashboard = (account, provider, format = 'pdf') =>
+  downloadFile(
+    `/export/dashboard/${provider}/${account}?format=${format}`,
+    `dashboard-${account}-${new Date().toISOString().split('T')[0]}.${format}`
+  );
+
+export const exportAudit = (account, format = 'pdf') =>
+  downloadFile(
+    `/export/audit/${account}?format=${format}`,
+    `audit-${account}-${new Date().toISOString().split('T')[0]}.${format}`
+  );
+
 // Users (RBAC)
 export const getUsers = () => request('/users');
 export const createUser = (data) => request('/users', { method: 'POST', body: JSON.stringify(data) });

@@ -31,6 +31,9 @@ google-cloud-storage>=2.10.0
 google-cloud-sqladmin>=0.1.0
 google-auth>=2.23.0
 
+# Report Export
+reportlab>=4.0
+
 # Utilities
 requests>=2.31.0
 netaddr>=0.8.0
