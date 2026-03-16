@@ -13,6 +13,7 @@ import SecurityGroups from './pages/SecurityGroups';
 import Scan from './pages/Scan';
 import Users from './pages/Users';
 import Report from './pages/Report';
+import Compliance from './pages/Compliance';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -41,6 +42,7 @@ function ProtectedRoutes() {
         <Route path="/scan" element={<Scan />} />
         <Route path="/users" element={<Users />} />
         <Route path="/report" element={<Report />} />
+        <Route path="/compliance" element={<Compliance />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

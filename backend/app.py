@@ -789,6 +789,212 @@ def export_audit(account_name: str, format: str = "pdf",
                         headers={"Content-Disposition": f'attachment; filename="audit-{account_name}.pdf"'})
 
 
+# ── COMPLIANCE MODULE ────────────────────────────────────────────
+from compliance.engine import ComplianceScanner, ComplianceStore
+from compliance.frameworks import get_all_frameworks, get_framework
+
+_compliance_scanner = ComplianceScanner(ACCOUNT_DATA_DIR)
+_compliance_store = ComplianceStore(BASE_DIR)
+
+
+class ComplianceScanRequest(BaseModel):
+    frameworks: list = []  # empty = all frameworks
+
+
+@app.get("/api/compliance/frameworks")
+def list_compliance_frameworks(user: dict = Depends(get_current_user)):
+    """List all supported compliance frameworks."""
+    frameworks = get_all_frameworks()
+    return {"frameworks": [
+        {
+            "id": fw.framework_id, "name": fw.name, "version": fw.version,
+            "description": fw.description, "category": fw.category,
+            "icon": fw.icon, "color": fw.color,
+            "total_controls": len(fw.controls),
+            "total_checks": fw.total_checks,
+        }
+        for fw in frameworks.values()
+    ]}
+
+
+@app.get("/api/compliance/frameworks/{framework_id}")
+def get_compliance_framework(framework_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed framework info with controls and checks."""
+    fw = get_framework(framework_id)
+    if not fw:
+        raise HTTPException(404, f"Framework '{framework_id}' not found")
+    return {
+        "id": fw.framework_id, "name": fw.name, "version": fw.version,
+        "description": fw.description, "category": fw.category,
+        "icon": fw.icon, "color": fw.color,
+        "controls": [
+            {
+                "control_id": c.control_id, "title": c.title,
+                "description": c.description, "section": c.section,
+                "severity": c.severity,
+                "checks": [
+                    {"check_id": ch.check_id, "title": ch.title, "description": ch.description,
+                     "resource_type": ch.resource_type, "severity": ch.severity, "remediation": ch.remediation}
+                    for ch in c.checks
+                ],
+            }
+            for c in fw.controls
+        ],
+    }
+
+
+@app.post("/api/compliance/scan/{account_name}")
+def run_compliance_scan(account_name: str, req: ComplianceScanRequest = ComplianceScanRequest(),
+                        user: dict = Depends(get_current_user)):
+    """Run compliance scan against all or selected frameworks."""
+    fw_ids = req.frameworks if req.frameworks else None
+    results = _compliance_scanner.scan(account_name, fw_ids)
+    if "error" in results:
+        raise HTTPException(404, results["error"])
+    _compliance_store.save(account_name, results)
+    return results
+
+
+@app.get("/api/compliance/results/{account_name}")
+def get_compliance_results(account_name: str, user: dict = Depends(get_current_user)):
+    """Get latest compliance scan results."""
+    results = _compliance_store.get_latest(account_name)
+    if not results:
+        raise HTTPException(404, f"No compliance results for '{account_name}'. Run a scan first.")
+    return results
+
+
+@app.get("/api/compliance/history/{account_name}")
+def get_compliance_history(account_name: str, user: dict = Depends(get_current_user)):
+    """Get compliance scan history for drift tracking."""
+    history = _compliance_store.get_history(account_name)
+    return {"account": account_name, "history": history}
+
+
+@app.get("/api/compliance/results/{account_name}/export")
+def export_compliance_report(account_name: str, format: str = "pdf",
+                             user: dict = Depends(get_current_user)):
+    """Export compliance report as PDF, Excel, or JSON."""
+    results = _compliance_store.get_latest(account_name)
+    if not results:
+        raise HTTPException(404, f"No compliance results for '{account_name}'")
+
+    if format == "json":
+        return Response(
+            content=json.dumps(results, indent=2, default=str),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="compliance-{account_name}.json"'},
+        )
+    elif format == "csv":
+        lines = ["Framework,Control,Check,Status,Severity,Reason,Remediation"]
+        for fw_id, fw in results.get("frameworks", {}).items():
+            for ctrl in fw.get("controls", []):
+                for ch in ctrl.get("checks", []):
+                    lines.append(','.join([
+                        f'"{fw["name"]}"', f'"{ctrl["section"]}"',
+                        f'"{ch["title"]}"', ch["status"], ch["severity"],
+                        f'"{ch["reason"]}"', f'"{ch["remediation"][:100]}"',
+                    ]))
+        content = '\n'.join(lines)
+        return Response(content=content, media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="compliance-{account_name}.csv"'})
+    else:
+        # PDF export using existing report generator patterns
+        content = _generate_compliance_pdf(results)
+        return Response(content=content, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="compliance-{account_name}.pdf"'})
+
+
+def _generate_compliance_pdf(results):
+    """Generate compliance PDF report."""
+    import io
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20*mm, bottomMargin=15*mm, leftMargin=15*mm, rightMargin=15*mm)
+    styles = getSampleStyleSheet()
+    title_s = ParagraphStyle('T', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#1E293B'), spaceAfter=5)
+    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=13, textColor=colors.HexColor('#4F46E5'), spaceBefore=12, spaceAfter=6)
+    body = ParagraphStyle('B', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#475569'), leading=12)
+    small = ParagraphStyle('S', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94A3B8'))
+
+    elements = []
+    summary = results.get("summary", {})
+    elements.append(Paragraph("CloudLunar Compliance Report", title_s))
+    elements.append(Paragraph(f"Account: {results.get('account')} | Scanned: {results.get('scanned_at', '')[:19]} | Score: {summary.get('overall_score', 0)}%", small))
+    elements.append(Spacer(1, 10))
+
+    # Summary table
+    elements.append(Paragraph("Executive Summary", h1))
+    summary_data = [
+        ["Overall Score", f"{summary.get('overall_score', 0)}%", "Total Checks", str(summary.get('total_checks', 0))],
+        ["Passed", str(summary.get('passed', 0)), "Failed", str(summary.get('failed', 0))],
+        ["Warnings", str(summary.get('warnings', 0)), "Critical", str(summary.get('severity_counts', {}).get('CRITICAL', 0))],
+    ]
+    t = Table(summary_data, colWidths=[80, 60, 80, 60])
+    t.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'), ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (3, 0), (3, -1), 'Helvetica-Bold'),
+    ]))
+    elements.append(t)
+
+    # Framework scores
+    elements.append(Paragraph("Framework Compliance Scores", h1))
+    fw_rows = [["Framework", "Score", "Passed", "Failed", "Status"]]
+    for fw_id, fw in results.get("frameworks", {}).items():
+        status = "PASS" if fw["score"] >= 80 else "WARN" if fw["score"] >= 50 else "FAIL"
+        fw_rows.append([fw["name"], f"{fw['score']}%", str(fw["passed"]), str(fw["failed"]), status])
+    t = Table(fw_rows, colWidths=[140, 50, 50, 50, 50])
+    style_list = [
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')), ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+    ]
+    sev_bg = {"PASS": '#D1FAE5', "WARN": '#FEF9C3', "FAIL": '#FEE2E2'}
+    for i, row in enumerate(fw_rows[1:], 1):
+        style_list.append(('BACKGROUND', (4, i), (4, i), colors.HexColor(sev_bg.get(row[4], '#F1F5F9'))))
+    t.setStyle(TableStyle(style_list))
+    elements.append(t)
+
+    elements.append(PageBreak())
+
+    # Findings
+    elements.append(Paragraph("Failed Compliance Checks", h1))
+    findings = results.get("all_findings", [])
+    if findings:
+        find_rows = [["Severity", "Check", "Reason", "Framework"]]
+        for f in findings[:80]:
+            fw_name = results["frameworks"].get(f.get("framework_id", ""), {}).get("name", "")
+            find_rows.append([f["severity"], f["title"][:40], f["reason"][:50], fw_name[:20]])
+        t = Table(find_rows, colWidths=[50, 140, 130, 80])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#E2E8F0')),
+        ]))
+        elements.append(t)
+
+    # AI Recommendations
+    elements.append(PageBreak())
+    elements.append(Paragraph("AI Recommendations", h1))
+    for rec in results.get("ai_recommendations", []):
+        elements.append(Paragraph(f"<b>[{rec['priority']}] {rec['title']}</b>", body))
+        elements.append(Paragraph(rec["description"], body))
+        for item in rec.get("items", []):
+            elements.append(Paragraph(f"• {item}", body))
+        elements.append(Spacer(1, 6))
+
+    doc.build(elements)
+    return buf.getvalue()
+
+
 # ── AI CHAT ──────────────────────────────────────────────────────
 class AiChatRequest(BaseModel):
     message: str

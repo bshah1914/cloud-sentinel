@@ -20,7 +20,7 @@ import Loader from '../components/Loader';
 import EmptyState from '../components/EmptyState';
 
 const CHART_TOOLTIP = {
-  contentStyle: { background: '#1e293b', border: '1px solid rgba(99,102,241,0.12)', borderRadius: '12px', color: '#eef2ff', fontSize: '11px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' },
+  contentStyle: { background: '#1a2332', border: '1px solid rgba(99,102,241,0.12)', borderRadius: '12px', color: '#eef2ff', fontSize: '11px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' },
 };
 
 const SEV_COLORS = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LOW: '#3b82f6', INFO: '#64748b' };
@@ -28,7 +28,7 @@ const SEV_COLORS = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LO
 const WAF_PILLARS = [
   { key: 'security', label: 'Security', icon: Shield, color: '#ef4444' },
   { key: 'reliability', label: 'Reliability', icon: Activity, color: '#f59e0b' },
-  { key: 'performance', label: 'Performance', icon: Cpu, color: '#6366f1' },
+  { key: 'performance', label: 'Performance', icon: Cpu, color: '#7c3aed' },
   { key: 'cost', label: 'Cost', icon: DollarSign, color: '#10b981' },
   { key: 'operational', label: 'Operations', icon: Settings, color: '#06b6d4' },
   { key: 'sustainability', label: 'Sustainability', icon: Leaf, color: '#84cc16' },
@@ -139,7 +139,7 @@ export default function Report() {
     .slice(0, 10);
 
   const resourcePie = [
-    { name: 'EC2', value: totals.instances, color: '#6366f1' },
+    { name: 'EC2', value: totals.instances, color: '#7c3aed' },
     { name: 'S3', value: totals.buckets, color: '#06b6d4' },
     { name: 'SGs', value: totals.security_groups, color: '#f59e0b' },
     { name: 'Lambda', value: totals.lambdas, color: '#10b981' },
@@ -154,7 +154,7 @@ export default function Report() {
         <button onClick={() => toggleSection(id)}
           className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.015] transition-all text-left">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color || '#6366f1'}12` }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color || '#7c3aed'}12` }}>
               {icon}
             </div>
             <span className="text-sm font-semibold text-text">{title}</span>
@@ -210,7 +210,7 @@ export default function Report() {
         {[
           { label: 'Security Score', value: `${dash.security_score}/100`, color: dash.security_score >= 80 ? '#10b981' : dash.security_score >= 50 ? '#f59e0b' : '#ef4444', icon: Shield },
           { label: 'WAF Score', value: `${waf.overall_score || 0}%`, color: (waf.overall_score || 0) >= 80 ? '#10b981' : (waf.overall_score || 0) >= 50 ? '#f59e0b' : '#ef4444', icon: Activity },
-          { label: 'Total Resources', value: Object.values(totals).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0), color: '#6366f1', icon: Server },
+          { label: 'Total Resources', value: Object.values(totals).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0), color: '#7c3aed', icon: Server },
           { label: 'Audit Findings', value: audit.total || 0, color: '#f59e0b', icon: AlertTriangle },
           { label: 'Regions', value: dash.regions_scanned || 0, color: '#06b6d4', icon: Globe },
         ].map((kpi, i) => (
@@ -231,7 +231,7 @@ export default function Report() {
       </div>
 
       {/* Section 1: Executive Summary */}
-      <CollapsibleSection id="summary" title="Executive Summary" icon={<Server className="w-4 h-4 text-primary-light" />} color="#6366f1">
+      <CollapsibleSection id="summary" title="Executive Summary" icon={<Server className="w-4 h-4 text-primary-light" />} color="#7c3aed">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-4">
           {/* Resource Distribution */}
           <div>
@@ -296,7 +296,7 @@ export default function Report() {
                 <XAxis dataKey="name" tick={{ fill: '#7c8db5', fontSize: 9 }} angle={-25} textAnchor="end" height={50} />
                 <YAxis tick={{ fill: '#7c8db5', fontSize: 10 }} />
                 <Tooltip {...CHART_TOOLTIP} />
-                <Bar dataKey="instances" name="EC2" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="instances" name="EC2" fill="#7c3aed" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="security_groups" name="SGs" fill="#f59e0b" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="lambdas" name="Lambda" fill="#10b981" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="rds" name="RDS" fill="#ef4444" radius={[3, 3, 0, 0]} />
@@ -317,8 +317,8 @@ export default function Report() {
                 <PolarGrid stroke="rgba(99,102,241,0.08)" />
                 <PolarAngleAxis dataKey="pillar" tick={{ fill: '#7c8db5', fontSize: 10 }} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                <Radar name="Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.15} strokeWidth={2}
-                  dot={{ r: 4, fill: '#6366f1', stroke: '#1e293b', strokeWidth: 2 }} />
+                <Radar name="Score" dataKey="score" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.15} strokeWidth={2}
+                  dot={{ r: 4, fill: '#7c3aed', stroke: '#1a2332', strokeWidth: 2 }} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
@@ -475,7 +475,7 @@ export default function Report() {
       <CollapsibleSection id="ai" title="AI Security Intelligence" icon={<Brain className="w-4 h-4 text-purple-400" />} color="#8b5cf6">
         <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
-            { key: 'summary', title: 'Cloud Posture Summary', icon: Cloud, color: '#6366f1' },
+            { key: 'summary', title: 'Cloud Posture Summary', icon: Cloud, color: '#7c3aed' },
             { key: 'risk', title: 'Top Security Risks', icon: AlertTriangle, color: '#ef4444' },
             { key: 'recommend', title: 'Recommendations & Best Practices', icon: Zap, color: '#f59e0b' },
             { key: 'compliance', title: 'Compliance Assessment', icon: Shield, color: '#10b981' },

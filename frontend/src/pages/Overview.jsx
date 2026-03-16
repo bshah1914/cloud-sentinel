@@ -26,14 +26,14 @@ const PROVIDER_META = {
 const WAF_PILLARS = [
   { key: 'security', label: 'Security', icon: Shield, color: '#ef4444', gradient: 'from-red-500/15 to-red-600/5' },
   { key: 'reliability', label: 'Reliability', icon: Activity, color: '#f59e0b', gradient: 'from-amber-500/15 to-amber-600/5' },
-  { key: 'performance', label: 'Performance', icon: Cpu, color: '#6366f1', gradient: 'from-indigo-500/15 to-indigo-600/5' },
+  { key: 'performance', label: 'Performance', icon: Cpu, color: '#7c3aed', gradient: 'from-indigo-500/15 to-indigo-600/5' },
   { key: 'cost', label: 'Cost', icon: DollarSign, color: '#10b981', gradient: 'from-emerald-500/15 to-emerald-600/5' },
   { key: 'operational', label: 'Operations', icon: Settings, color: '#06b6d4', gradient: 'from-cyan-500/15 to-cyan-600/5' },
   { key: 'sustainability', label: 'Sustainability', icon: Leaf, color: '#84cc16', gradient: 'from-lime-500/15 to-lime-600/5' },
 ];
 
 const CHART_TOOLTIP = {
-  contentStyle: { background: '#1e293b', border: '1px solid rgba(99,102,241,0.12)', borderRadius: '12px', color: '#eef2ff', fontSize: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' },
+  contentStyle: { background: '#1a2332', border: '1px solid rgba(99,102,241,0.12)', borderRadius: '12px', color: '#eef2ff', fontSize: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' },
 };
 
 function ScoreGauge({ score, size = 120 }) {
@@ -100,7 +100,7 @@ export default function Overview() {
 
   const providerPie = Object.entries(data.providers).map(([pid, p]) => ({
     name: p.short_name, value: p.total_resources,
-    color: PROVIDER_META[pid]?.color || '#6366f1',
+    color: PROVIDER_META[pid]?.color || '#7c3aed',
   })).filter((d) => d.value > 0);
 
   const radarData = waf ? WAF_PILLARS.map((p) => ({
@@ -121,7 +121,7 @@ export default function Overview() {
   ];
 
   const kpis = [
-    { label: 'Cloud Accounts', value: data.total_accounts, icon: Cloud, color: '#6366f1', change: '+1' },
+    { label: 'Cloud Accounts', value: data.total_accounts, icon: Cloud, color: '#7c3aed', change: '+1' },
     { label: 'Total Resources', value: data.total_resources, icon: Server, color: '#06b6d4', change: null },
     { label: 'Security Findings', value: data.total_findings, icon: AlertTriangle, color: data.total_findings > 10 ? '#ef4444' : '#f59e0b', change: null },
     { label: 'Security Score', value: `${data.avg_security_score}/100`, icon: Shield, color: data.avg_security_score >= 80 ? '#10b981' : data.avg_security_score >= 50 ? '#f59e0b' : '#ef4444', change: null },
@@ -212,8 +212,8 @@ export default function Overview() {
                     <PolarGrid stroke="rgba(99,102,241,0.08)" />
                     <PolarAngleAxis dataKey="pillar" tick={{ fill: '#7c8db5', fontSize: 11 }} />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                    <Radar name="Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.15} strokeWidth={2}
-                      dot={{ r: 4, fill: '#6366f1', stroke: '#1e293b', strokeWidth: 2 }} />
+                    <Radar name="Score" dataKey="score" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.15} strokeWidth={2}
+                      dot={{ r: 4, fill: '#7c3aed', stroke: '#1a2332', strokeWidth: 2 }} />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
@@ -285,16 +285,16 @@ export default function Overview() {
             <AreaChart data={trendData}>
               <defs>
                 <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,102,241,0.05)" />
               <XAxis dataKey="day" tick={{ fill: '#7c8db5', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 100]} hide />
               <Tooltip {...CHART_TOOLTIP} />
-              <Area type="monotone" dataKey="score" stroke="#6366f1" fill="url(#scoreGrad)" strokeWidth={2}
-                dot={{ r: 3, fill: '#6366f1', stroke: '#1e293b', strokeWidth: 2 }} />
+              <Area type="monotone" dataKey="score" stroke="#7c3aed" fill="url(#scoreGrad)" strokeWidth={2}
+                dot={{ r: 3, fill: '#7c3aed', stroke: '#1a2332', strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>
         </Card>
@@ -434,7 +434,7 @@ export default function Overview() {
           </div>
           <div className="space-y-3">
             {[
-              { to: '/scan', icon: Activity, label: 'Run Cloud Scan', desc: 'Collect latest resource data from your cloud providers', color: '#6366f1' },
+              { to: '/scan', icon: Activity, label: 'Run Cloud Scan', desc: 'Collect latest resource data from your cloud providers', color: '#7c3aed' },
               { to: '/audit', icon: Shield, label: 'Security Audit', desc: 'Check for misconfigurations and compliance violations', color: '#ef4444' },
               { to: '/resources', icon: Server, label: 'Browse Resources', desc: 'Explore EC2, S3, Lambda, RDS and more', color: '#06b6d4' },
               { to: '/security-groups', icon: Lock, label: 'Security Groups', desc: 'Identify risky firewall rules and open ports', color: '#f59e0b' },

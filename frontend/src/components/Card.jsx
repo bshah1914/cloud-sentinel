@@ -7,11 +7,11 @@ export default function Card({ children, className, glow, delay = 0, hover = tru
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
-      whileHover={hover ? { y: -1 } : undefined}
+      whileHover={hover ? { y: -2, scale: 1.002 } : undefined}
       className={clsx(
-        'rounded-2xl bg-surface-light/80 border border-border/50 p-6',
-        'hover:border-primary/15 transition-all duration-300',
-        'backdrop-blur-sm',
+        'rounded-2xl bg-surface-light border border-border/60 p-6',
+        'hover:border-primary/20 transition-all duration-300',
+        'backdrop-blur-sm shadow-md shadow-black/10',
         glow && `glow-${glow}`,
         className
       )}

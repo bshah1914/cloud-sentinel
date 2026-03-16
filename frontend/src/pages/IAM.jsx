@@ -62,7 +62,7 @@ export default function IAM() {
   };
 
   const summaryChart = [
-    { name: 'Users', count: summary.Users || 0, fill: '#6366f1' },
+    { name: 'Users', count: summary.Users || 0, fill: '#7c3aed' },
     { name: 'Roles', count: summary.Roles || 0, fill: '#06b6d4' },
     { name: 'Groups', count: summary.Groups || 0, fill: '#10b981' },
     { name: 'Policies', count: summary.Policies || 0, fill: '#f59e0b' },

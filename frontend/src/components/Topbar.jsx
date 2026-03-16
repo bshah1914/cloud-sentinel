@@ -23,6 +23,7 @@ const PAGE_TITLES = {
   '/security-groups': 'Security Groups',
   '/users': 'User Management',
   '/report': 'Comprehensive Report',
+  '/compliance': 'Cloud Compliance',
 };
 
 export default function Topbar({ account, provider, onAccountChange, accounts }) {

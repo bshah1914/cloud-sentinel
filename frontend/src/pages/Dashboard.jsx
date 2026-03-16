@@ -44,7 +44,7 @@ const RESOURCE_LABELS = {
 };
 
 const TOOLTIP_STYLE = {
-  background: '#1e293b', border: '1px solid rgba(148,163,184,0.15)',
+  background: '#1a2332', border: '1px solid rgba(148,163,184,0.15)',
   borderRadius: '12px', color: '#f1f5f9', fontSize: '12px',
   boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
 };
@@ -129,7 +129,7 @@ export default function Dashboard() {
   }));
 
   const resourcePie = [
-    { name: 'EC2', value: totals.instances, color: '#6366f1' },
+    { name: 'EC2', value: totals.instances, color: '#7c3aed' },
     { name: 'S3', value: totals.buckets, color: '#06b6d4' },
     { name: 'Lambda', value: totals.lambdas, color: '#10b981' },
     { name: 'RDS', value: totals.rds, color: '#f59e0b' },
@@ -338,7 +338,7 @@ export default function Dashboard() {
               <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Bar dataKey="EC2" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="EC2" fill="#7c3aed" radius={[4, 4, 0, 0]} />
               <Bar dataKey="SGs" fill="#f59e0b" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Lambda" fill="#10b981" radius={[4, 4, 0, 0]} />
               <Bar dataKey="RDS" fill="#ef4444" radius={[4, 4, 0, 0]} />

@@ -140,6 +140,17 @@ export const aiChat = (message, history = []) =>
 // Well-Architected Framework
 export const getWafReport = (account) => request(`/waf/${account}`);
 
+// Compliance Module
+export const getComplianceFrameworks = () => request('/compliance/frameworks');
+export const getComplianceFramework = (id) => request(`/compliance/frameworks/${id}`);
+export const runComplianceScan = (account, frameworks = []) =>
+  request(`/compliance/scan/${account}`, { method: 'POST', body: JSON.stringify({ frameworks }) });
+export const getComplianceResults = (account) => request(`/compliance/results/${account}`);
+export const getComplianceHistory = (account) => request(`/compliance/history/${account}`);
+export const exportComplianceReport = (account, format = 'pdf') =>
+  downloadFile(`/compliance/results/${account}/export?format=${format}`,
+    `compliance-${account}-${new Date().toISOString().split('T')[0]}.${format === 'json' ? 'json' : format === 'csv' ? 'csv' : 'pdf'}`);
+
 // Comprehensive Report
 export const getReport = (account) => request(`/report/${account}`);
 export const exportReport = (account, format = 'pdf') =>
