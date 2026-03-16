@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import AiChat from './AiChat';
 import { getAccounts } from '../api';
 
 export default function Layout() {
@@ -51,7 +52,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface mesh-bg noise">
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed(!collapsed)}
@@ -61,7 +62,7 @@ export default function Layout() {
       <motion.div
         initial={false}
         animate={{ marginLeft: collapsed ? 72 : 260 }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
         className="min-h-screen flex flex-col"
       >
         <Topbar
@@ -80,6 +81,8 @@ export default function Layout() {
           }} />
         </main>
       </motion.div>
+
+      <AiChat />
     </div>
   );
 }

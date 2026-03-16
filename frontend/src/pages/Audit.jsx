@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,9 +6,10 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Play, Filter, ChevronDown, ChevronRight,
-  AlertTriangle, Search, Download, FileText
+  AlertTriangle, Search, Download, FileText, Zap, Target
 } from 'lucide-react';
 import { runAudit, exportAudit } from '../api';
+import { useToast } from '../components/Toast';
 import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
 import Loader from '../components/Loader';
@@ -22,10 +23,19 @@ const SEV_COLORS = {
   INFO: '#64748b',
 };
 
+const SEV_ICONS = {
+  CRITICAL: '!!',
+  HIGH: '!',
+  MEDIUM: '~',
+  LOW: 'i',
+  INFO: '-',
+};
+
 const SEV_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
 
 export default function Audit() {
   const { account } = useOutletContext();
+  const { addToast } = useToast();
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -40,6 +50,7 @@ export default function Audit() {
     try {
       const res = await runAudit(account);
       setResults(res);
+      addToast(`Audit complete: ${res.total} findings across ${Object.keys(res.summary).filter(k => res.summary[k] > 0).length} severity levels`, 'success', 5000);
     } catch (e) {
       setError(e.message);
     }
@@ -84,7 +95,7 @@ export default function Audit() {
     : [];
 
   const exportCSV = () => {
-    if (!filtered.length) return;
+    if (!filtered.length) { addToast('No findings to export', 'warning'); return; }
     const headers = 'Severity,Title,Issue,Region,Resource\n';
     const rows = filtered.map((f) =>
       [f.severity, f.title, f.issue, f.region || '', f.resource || ''].map((v) => `"${v}"`).join(',')
@@ -96,37 +107,51 @@ export default function Audit() {
     a.download = `audit-${account}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    addToast('Audit CSV report downloaded successfully', 'success');
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      await exportAudit(account, 'pdf');
+      addToast('Audit PDF report downloaded successfully', 'success');
+    } catch (e) {
+      addToast(`PDF export failed: ${e.message}`, 'error');
+    }
   };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-primary" /> Security Audit
+          <h1 className="text-2xl font-bold flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/12 flex items-center justify-center">
+              <ShieldCheck className="w-4.5 h-4.5 text-primary-light" />
+            </div>
+            Security Audit
           </h1>
-          <p className="text-text-muted text-sm mt-1">Run security audits and review findings</p>
+          <p className="text-text-muted text-sm mt-1.5">Run security audits and review findings for <span className="text-accent font-medium">{account}</span></p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {results && (
             <>
-              <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-surface-lighter hover:bg-surface-lighter/80 rounded-lg text-sm transition-colors">
-                <Download className="w-4 h-4" /> CSV
+              <button onClick={exportCSV} className="flex items-center gap-2 px-3.5 py-2 bg-surface-lighter/50 hover:bg-surface-lighter border border-border/50 rounded-xl text-xs font-medium transition-all">
+                <Download className="w-3.5 h-3.5" /> CSV
               </button>
-              <button onClick={() => exportAudit(account, 'pdf')} className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark rounded-lg text-sm font-medium transition-colors">
-                <FileText className="w-4 h-4" /> Export PDF
+              <button onClick={handleExportPdf} className="flex items-center gap-2 px-3.5 py-2 bg-surface-lighter/50 hover:bg-surface-lighter border border-border/50 rounded-xl text-xs font-medium transition-all">
+                <FileText className="w-3.5 h-3.5" /> PDF
               </button>
             </>
           )}
           <button
             onClick={handleRunAudit}
             disabled={loading || !account}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary disabled:opacity-50 rounded-xl text-sm font-medium transition-all shadow-lg shadow-primary/15"
           >
             {loading ? (
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
             ) : (
-              <Play className="w-4 h-4" />
+              <Zap className="w-4 h-4" />
             )}
             {loading ? 'Running...' : 'Run Audit'}
           </button>
@@ -134,60 +159,71 @@ export default function Audit() {
       </motion.div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400 text-sm flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4" /> {error}
-        </div>
+        <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-red-500/8 border border-red-500/15 rounded-xl p-4 text-red-400 text-sm flex items-center gap-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {error}
+        </motion.div>
       )}
 
       {loading && <Loader text="Running security audit..." />}
 
       {results && !loading && (
         <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-            <Card delay={0} className="col-span-2 flex items-center justify-center">
+          {/* Summary */}
+          <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
+            {/* Pie chart */}
+            <Card delay={0} className="col-span-2 flex items-center justify-center" hover={false}>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value">
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value" animationDuration={800}>
                     {pieData.map((d) => <Cell key={d.name} fill={SEV_COLORS[d.name]} stroke="transparent" />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '12px' }} />
+                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '12px', color: '#f1f5f9', fontSize: '12px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </Card>
+            {/* Severity counts */}
             {SEV_ORDER.map((sev, i) => (
-              <Card key={sev} delay={0.05 * (i + 1)}>
-                <div className="text-center">
-                  <p className="text-3xl font-bold" style={{ color: SEV_COLORS[sev] }}>{results.summary[sev] || 0}</p>
-                  <p className="text-xs text-text-muted mt-1">{sev}</p>
-                </div>
-              </Card>
+              <motion.div
+                key={sev}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * (i + 1) }}
+                whileHover={{ scale: 1.03 }}
+                onClick={() => toggleSeverity(sev)}
+                className={`rounded-2xl bg-surface-light/80 border p-4 cursor-pointer transition-all text-center ${
+                  severityFilter.has(sev) ? 'border-border/50 opacity-100' : 'border-border/20 opacity-40'
+                }`}
+              >
+                <p className="text-3xl font-bold tabular-nums" style={{ color: SEV_COLORS[sev] }}>{results.summary[sev] || 0}</p>
+                <p className="text-[10px] text-text-muted mt-1 uppercase tracking-wider font-medium">{sev}</p>
+              </motion.div>
             ))}
           </div>
 
-          {/* Filters */}
-          <Card delay={0.2}>
+          {/* Search + Filters */}
+          <Card delay={0.15} hover={false}>
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search findings..."
-                  className="w-full bg-surface border border-border rounded-lg pl-10 pr-3 py-2 text-sm text-text focus:outline-none focus:border-primary transition-colors"
+                  placeholder="Search findings by title, issue, region, or resource..."
+                  className="w-full bg-surface/60 border border-border/50 rounded-xl pl-10 pr-3 py-2.5 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-primary/40 transition-all"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-text-muted" />
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-text-muted mr-1" />
                 {SEV_ORDER.map((sev) => (
                   <button
                     key={sev}
                     onClick={() => toggleSeverity(sev)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all border ${
                       severityFilter.has(sev)
-                        ? 'border-current opacity-100'
-                        : 'border-transparent opacity-40'
+                        ? 'border-current/30 opacity-100'
+                        : 'border-transparent opacity-30'
                     }`}
                     style={{ color: SEV_COLORS[sev] }}
                   >
@@ -198,29 +234,35 @@ export default function Audit() {
             </div>
           </Card>
 
-          {/* Findings Table */}
-          <Card delay={0.3}>
+          {/* Findings */}
+          <Card delay={0.2} hover={false}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">
-                Findings ({filtered.length} of {results.total})
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Target className="w-4 h-4 text-text-muted" />
+                Findings
+                <span className="text-xs text-text-muted font-normal">({filtered.length} of {results.total})</span>
               </h3>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {filtered.map((f, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: Math.min(i * 0.02, 0.5) }}
+                  transition={{ delay: Math.min(i * 0.015, 0.4) }}
                 >
                   <button
                     onClick={() => toggleRow(i)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-surface-lighter/30 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.02] transition-all text-left group"
                   >
-                    {expandedRows.has(i) ? <ChevronDown className="w-4 h-4 text-text-muted flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-muted flex-shrink-0" />}
+                    <motion.div animate={{ rotate: expandedRows.has(i) ? 90 : 0 }} transition={{ duration: 0.2 }}>
+                      <ChevronRight className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
+                    </motion.div>
                     <StatusBadge status={f.severity} className="flex-shrink-0" />
-                    <span className="text-sm flex-1 truncate">{f.title || f.issue}</span>
-                    {f.region && <span className="text-xs text-text-muted">{f.region}</span>}
+                    <span className="text-sm flex-1 truncate group-hover:text-text transition-colors">{f.title || f.issue}</span>
+                    {f.region && (
+                      <span className="text-[10px] text-text-muted bg-surface-lighter/50 px-2 py-0.5 rounded-md">{f.region}</span>
+                    )}
                   </button>
                   <AnimatePresence>
                     {expandedRows.has(i) && (
@@ -228,18 +270,35 @@ export default function Audit() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
                         className="ml-11 mr-4 mb-2 overflow-hidden"
                       >
-                        <div className="bg-surface/50 rounded-lg p-4 space-y-2 text-sm">
-                          {f.description && <p className="text-text-muted">{f.description}</p>}
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div><span className="text-text-muted">Issue ID: </span><span className="font-mono">{f.issue}</span></div>
-                            <div><span className="text-text-muted">Group: </span><span>{f.group}</span></div>
-                            {f.resource && <div><span className="text-text-muted">Resource: </span><span className="font-mono text-accent">{f.resource}</span></div>}
-                            {f.region && <div><span className="text-text-muted">Region: </span><span>{f.region}</span></div>}
+                        <div className="bg-surface/40 rounded-xl p-4 space-y-3 text-sm border border-border/30">
+                          {f.description && <p className="text-text-muted text-xs leading-relaxed">{f.description}</p>}
+                          <div className="grid grid-cols-2 gap-3 text-xs">
+                            <div className="bg-surface-lighter/30 rounded-lg p-2.5">
+                              <span className="text-text-muted text-[10px] uppercase tracking-wider">Issue ID</span>
+                              <p className="font-mono text-text mt-0.5">{f.issue}</p>
+                            </div>
+                            <div className="bg-surface-lighter/30 rounded-lg p-2.5">
+                              <span className="text-text-muted text-[10px] uppercase tracking-wider">Group</span>
+                              <p className="text-text mt-0.5">{f.group}</p>
+                            </div>
+                            {f.resource && (
+                              <div className="bg-surface-lighter/30 rounded-lg p-2.5">
+                                <span className="text-text-muted text-[10px] uppercase tracking-wider">Resource</span>
+                                <p className="font-mono text-accent text-xs mt-0.5 truncate">{f.resource}</p>
+                              </div>
+                            )}
+                            {f.region && (
+                              <div className="bg-surface-lighter/30 rounded-lg p-2.5">
+                                <span className="text-text-muted text-[10px] uppercase tracking-wider">Region</span>
+                                <p className="text-text mt-0.5">{f.region}</p>
+                              </div>
+                            )}
                           </div>
                           {f.details && (
-                            <pre className="text-xs bg-surface rounded-lg p-3 overflow-x-auto text-text-muted mt-2">
+                            <pre className="text-[11px] bg-surface rounded-xl p-3.5 overflow-x-auto text-text-muted mt-2 border border-border/30 leading-relaxed">
                               {typeof f.details === 'string' ? f.details : JSON.stringify(f.details, null, 2)}
                             </pre>
                           )}
@@ -261,7 +320,7 @@ export default function Audit() {
         <EmptyState
           icon={ShieldCheck}
           title="No audit results yet"
-          description="Click 'Run Audit' to scan your AWS account for security issues"
+          description="Click 'Run Audit' to scan your cloud account for security issues, misconfigurations, and compliance violations."
         />
       )}
     </div>

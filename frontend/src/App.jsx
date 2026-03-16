@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
+import { ToastProvider } from './components/Toast';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
@@ -11,6 +12,7 @@ import IAM from './pages/IAM';
 import SecurityGroups from './pages/SecurityGroups';
 import Scan from './pages/Scan';
 import Users from './pages/Users';
+import Report from './pages/Report';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -38,6 +40,7 @@ function ProtectedRoutes() {
         <Route path="/security-groups" element={<SecurityGroups />} />
         <Route path="/scan" element={<Scan />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/report" element={<Report />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -60,12 +63,14 @@ function LoginRoute() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginRoute />} />
-          <Route path="/*" element={<ProtectedRoutes />} />
-        </Routes>
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginRoute />} />
+            <Route path="/*" element={<ProtectedRoutes />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

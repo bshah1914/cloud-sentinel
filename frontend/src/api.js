@@ -132,3 +132,18 @@ export const exportAudit = (account, format = 'pdf') =>
 export const getUsers = () => request('/users');
 export const createUser = (data) => request('/users', { method: 'POST', body: JSON.stringify(data) });
 export const deleteUser = (username) => request(`/users/${username}`, { method: 'DELETE' });
+
+// AI Chat
+export const aiChat = (message, history = []) =>
+  request('/ai/chat', { method: 'POST', body: JSON.stringify({ message, history }) });
+
+// Well-Architected Framework
+export const getWafReport = (account) => request(`/waf/${account}`);
+
+// Comprehensive Report
+export const getReport = (account) => request(`/report/${account}`);
+export const exportReport = (account, format = 'pdf') =>
+  downloadFile(
+    `/report/${account}/export?format=${format}`,
+    `CloudLunar-Report-${account}-${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`
+  );

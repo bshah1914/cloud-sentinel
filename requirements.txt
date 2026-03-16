@@ -28,7 +28,7 @@ azure-mgmt-resource>=23.0.0
 # ── GCP ──
 google-cloud-compute>=1.14.0
 google-cloud-storage>=2.10.0
-google-cloud-sqladmin>=0.1.0
+# google-cloud-sqladmin — optional, install manually if needed
 google-auth>=2.23.0
 
 # Report Export

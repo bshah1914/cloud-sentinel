@@ -789,6 +789,828 @@ def export_audit(account_name: str, format: str = "pdf",
                         headers={"Content-Disposition": f'attachment; filename="audit-{account_name}.pdf"'})
 
 
+# ── AI CHAT ──────────────────────────────────────────────────────
+class AiChatRequest(BaseModel):
+    message: str
+    history: list = []
+
+# Well-Architected Framework pillars for AI analysis
+WAF_PILLARS = {
+    "security": {
+        "name": "Security",
+        "checks": [
+            ("Root MFA", lambda d: d.get("iam_summary", {}).get("AccountMFAEnabled", False), "Enable MFA on root account"),
+            ("No root keys", lambda d: not d.get("iam_summary", {}).get("AccountAccessKeysPresent", True), "Remove root account access keys"),
+            ("IAM MFA", lambda d: d.get("iam_users_no_mfa", 1) == 0, "Enable MFA for all IAM users"),
+            ("No open SGs", lambda d: d.get("open_security_groups", 1) == 0, "Restrict security groups open to 0.0.0.0/0"),
+            ("No public RDS", lambda d: d.get("public_summary", {}).get("rds", 1) == 0, "Disable public access on RDS instances"),
+        ],
+    },
+    "reliability": {
+        "name": "Reliability",
+        "checks": [
+            ("Multi-AZ", lambda d: len([r for r, s in d.get("regions", {}).items() if s.get("has_resources")]) > 1, "Deploy across multiple availability zones"),
+            ("Snapshots exist", lambda d: d.get("totals", {}).get("snapshots", 0) > 0, "Create regular EBS/RDS snapshots"),
+            ("ELBs present", lambda d: d.get("totals", {}).get("elbs", 0) > 0, "Use load balancers for high availability"),
+        ],
+    },
+    "performance": {
+        "name": "Performance Efficiency",
+        "checks": [
+            ("Right-sized instances", lambda d: True, "Review instance types for right-sizing"),
+            ("Lambda usage", lambda d: d.get("totals", {}).get("lambdas", 0) > 0, "Consider serverless for variable workloads"),
+        ],
+    },
+    "cost": {
+        "name": "Cost Optimization",
+        "checks": [
+            ("No stopped EC2", lambda d: all(r.get("instances_stopped", 0) == 0 for r in d.get("regions", {}).values()), "Terminate or schedule stopped instances"),
+            ("Snapshot cleanup", lambda d: d.get("totals", {}).get("snapshots", 0) < 50, "Review and clean up old snapshots"),
+        ],
+    },
+    "operational": {
+        "name": "Operational Excellence",
+        "checks": [
+            ("CloudTrail", lambda d: any(r.get("cloudtrail_trails", 0) > 0 for r in d.get("regions", {}).values()), "Enable CloudTrail in all regions"),
+            ("GuardDuty", lambda d: any(r.get("guardduty_enabled", False) for r in d.get("regions", {}).values()), "Enable GuardDuty for threat detection"),
+        ],
+    },
+    "sustainability": {
+        "name": "Sustainability",
+        "checks": [
+            ("Region consolidation", lambda d: len([r for r, s in d.get("regions", {}).items() if s.get("has_resources")]) <= 5, "Consolidate resources to fewer regions"),
+        ],
+    },
+}
+
+
+def _analyze_waf(dashboard_data):
+    """Analyze dashboard data against Well-Architected Framework pillars."""
+    results = {}
+    for pillar_id, pillar in WAF_PILLARS.items():
+        checks = []
+        passed = 0
+        for check_name, check_fn, recommendation in pillar["checks"]:
+            try:
+                ok = check_fn(dashboard_data)
+            except Exception:
+                ok = False
+            checks.append({"name": check_name, "passed": ok, "recommendation": recommendation})
+            if ok:
+                passed += 1
+        total = len(checks)
+        results[pillar_id] = {
+            "name": pillar["name"],
+            "score": round(passed / total * 100) if total > 0 else 0,
+            "passed": passed,
+            "total": total,
+            "checks": checks,
+        }
+    overall = sum(p["score"] for p in results.values()) / len(results) if results else 0
+    return {"overall_score": round(overall), "pillars": results}
+
+
+def _generate_ai_response(message, dashboard_data, audit_findings, waf_analysis):
+    """Generate an AI-style response based on actual cloud data."""
+    lower = message.lower()
+    lines = []
+
+    if any(w in lower for w in ["well-architected", "waf", "pillar", "framework", "architect"]):
+        lines.append("## AWS Well-Architected Framework Analysis\n")
+        for pid, pillar in waf_analysis.get("pillars", {}).items():
+            icon = "✅" if pillar["score"] >= 80 else "⚠️" if pillar["score"] >= 50 else "❌"
+            lines.append(f"{icon} **{pillar['name']}**: {pillar['score']}% ({pillar['passed']}/{pillar['total']} checks passed)")
+            for check in pillar["checks"]:
+                status = "✓" if check["passed"] else "✗"
+                lines.append(f"   {status} {check['name']}" + ("" if check["passed"] else f" — {check['recommendation']}"))
+        lines.append(f"\n**Overall Score: {waf_analysis.get('overall_score', 0)}%**")
+        return "\n".join(lines)
+
+    if any(w in lower for w in ["risk", "top", "critical", "threat", "issue"]):
+        critical = [f for f in audit_findings if f.get("severity") == "CRITICAL"]
+        high = [f for f in audit_findings if f.get("severity") == "HIGH"]
+        lines.append("## Top Security Risks\n")
+        if critical:
+            lines.append(f"**🔴 {len(critical)} Critical Finding(s):**")
+            for f in critical[:5]:
+                lines.append(f"- {f.get('title', f.get('issue', 'Unknown'))}")
+                if f.get('resource'):
+                    lines.append(f"  Resource: `{f['resource']}`")
+        if high:
+            lines.append(f"\n**🟠 {len(high)} High Finding(s):**")
+            for f in high[:5]:
+                lines.append(f"- {f.get('title', f.get('issue', 'Unknown'))}")
+        if not critical and not high:
+            lines.append("No critical or high severity findings detected. Your security posture looks good!")
+        lines.append("\n**Recommendation:** Address critical findings immediately, then work through high-severity items.")
+        return "\n".join(lines)
+
+    if any(w in lower for w in ["score", "improve", "better", "increase"]):
+        score = dashboard_data.get("security_score", 0)
+        lines.append(f"## Security Score: {score}/100\n")
+        waf = waf_analysis.get("pillars", {})
+        weak = sorted(waf.items(), key=lambda x: x[1]["score"])
+        lines.append("**Areas to improve (sorted by priority):**\n")
+        for pid, pillar in weak:
+            if pillar["score"] < 100:
+                failed = [c for c in pillar["checks"] if not c["passed"]]
+                for c in failed:
+                    lines.append(f"- **{pillar['name']}**: {c['recommendation']}")
+        return "\n".join(lines)
+
+    if any(w in lower for w in ["posture", "summary", "overview", "status"]):
+        t = dashboard_data.get("totals", {})
+        lines.append("## Cloud Security Posture Summary\n")
+        lines.append(f"- **EC2 Instances:** {t.get('instances', 0)}")
+        lines.append(f"- **S3 Buckets:** {t.get('buckets', 0)}")
+        lines.append(f"- **Lambda Functions:** {t.get('lambdas', 0)}")
+        lines.append(f"- **RDS Instances:** {t.get('rds', 0)}")
+        lines.append(f"- **Security Groups:** {t.get('security_groups', 0)}")
+        lines.append(f"- **Open Security Groups:** {dashboard_data.get('open_security_groups', 0)}")
+        lines.append(f"- **Public IPs:** {len(dashboard_data.get('public_ips', []))}")
+        lines.append(f"- **Security Score:** {dashboard_data.get('security_score', 0)}/100")
+        lines.append(f"- **Regions Scanned:** {dashboard_data.get('regions_scanned', 0)}")
+        sev = {}
+        for f in audit_findings:
+            s = f.get("severity", "INFO")
+            sev[s] = sev.get(s, 0) + 1
+        lines.append(f"\n**Audit Findings:** {len(audit_findings)} total")
+        for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
+            if sev.get(s, 0) > 0:
+                lines.append(f"  - {s}: {sev[s]}")
+        return "\n".join(lines)
+
+    if any(w in lower for w in ["public", "exposed", "internet"]):
+        pips = dashboard_data.get("public_ips", [])
+        ps = dashboard_data.get("public_summary", {})
+        lines.append(f"## Publicly Exposed Resources ({len(pips)} total)\n")
+        if ps.get("ec2", 0) > 0:
+            lines.append(f"- **{ps['ec2']} EC2 instance(s)** with public IPs")
+        if ps.get("rds", 0) > 0:
+            lines.append(f"- **{ps['rds']} RDS instance(s)** publicly accessible ⚠️")
+        if ps.get("elb", 0) > 0:
+            lines.append(f"- **{ps['elb']} Load Balancer(s)** internet-facing")
+        osg = dashboard_data.get("open_security_groups", 0)
+        if osg > 0:
+            lines.append(f"- **{osg} Security Group rule(s)** open to 0.0.0.0/0")
+        if not pips:
+            lines.append("No publicly exposed resources detected. Great job!")
+        else:
+            lines.append("\n**Recommendations:**")
+            lines.append("- Move RDS instances to private subnets")
+            lines.append("- Use VPC endpoints instead of public access")
+            lines.append("- Restrict security group ingress to known CIDRs")
+        return "\n".join(lines)
+
+    if any(w in lower for w in ["mfa", "authentication", "iam", "user"]):
+        iam = dashboard_data.get("iam_summary", {})
+        lines.append("## IAM & Authentication Status\n")
+        lines.append(f"- **Root MFA:** {'✅ Enabled' if iam.get('AccountMFAEnabled') else '❌ Disabled'}")
+        lines.append(f"- **Root Access Keys:** {'❌ Present (remove!)' if iam.get('AccountAccessKeysPresent') else '✅ None'}")
+        lines.append(f"- **IAM Users:** {iam.get('Users', 0)}")
+        lines.append(f"- **Users without MFA:** {dashboard_data.get('iam_users_no_mfa', 0)}")
+        lines.append(f"- **IAM Roles:** {iam.get('Roles', 0)}")
+        lines.append(f"- **Policies:** {iam.get('Policies', 0)}")
+        return "\n".join(lines)
+
+    if any(w in lower for w in ["compliance", "regulation", "gdpr", "soc", "cis", "benchmark"]):
+        lines.append("## Compliance Assessment\n")
+        waf = waf_analysis.get("pillars", {})
+        sec = waf.get("security", {})
+        ops = waf.get("operational", {})
+        lines.append(f"**CIS Benchmark Alignment:** {sec.get('score', 0)}%")
+        lines.append(f"**Operational Readiness:** {ops.get('score', 0)}%\n")
+        lines.append("**Key Compliance Controls:**")
+        lines.append(f"- Encryption at rest: Review S3 bucket policies")
+        lines.append(f"- Audit logging: {'✅' if ops.get('score', 0) > 50 else '⚠️'} CloudTrail status")
+        lines.append(f"- Access control: {'✅' if sec.get('score', 0) > 60 else '⚠️'} IAM policies")
+        lines.append(f"- Network security: {dashboard_data.get('open_security_groups', 0)} open rules to review")
+        return "\n".join(lines)
+
+    if any(w in lower for w in ["recommend", "suggest", "best practice", "action", "fix"]):
+        lines.append("## Actionable Recommendations\n")
+        lines.append("**🔴 Immediate (Critical):**")
+        waf = waf_analysis.get("pillars", {})
+        for pid, pillar in waf.items():
+            for c in pillar.get("checks", []):
+                if not c["passed"]:
+                    lines.append(f"- [{pillar['name']}] {c['recommendation']}")
+        lines.append("\n**🟡 Short-term:**")
+        lines.append("- Review and tag all resources for cost tracking")
+        lines.append("- Set up AWS Config for continuous compliance")
+        lines.append("- Enable VPC Flow Logs for network monitoring")
+        lines.append("\n**🟢 Long-term:**")
+        lines.append("- Implement Infrastructure as Code (Terraform/CloudFormation)")
+        lines.append("- Set up automated remediation with Lambda")
+        lines.append("- Establish a cloud security governance framework")
+        return "\n".join(lines)
+
+    # Default response
+    lines.append("I can help you analyze your cloud infrastructure. Try asking about:")
+    lines.append("")
+    lines.append("- **'Well-Architected analysis'** — Check against AWS WAF pillars")
+    lines.append("- **'Top security risks'** — Critical and high-severity findings")
+    lines.append("- **'Security score'** — How to improve your score")
+    lines.append("- **'Cloud posture summary'** — Resource and security overview")
+    lines.append("- **'Publicly exposed resources'** — Internet-facing services")
+    lines.append("- **'IAM status'** — Users, MFA, and access analysis")
+    lines.append("- **'Compliance assessment'** — CIS, SOC2, GDPR alignment")
+    lines.append("- **'Recommendations'** — Actionable improvement steps")
+    return "\n".join(lines)
+
+
+@app.post("/api/ai/chat")
+def ai_chat(req: AiChatRequest, user: dict = Depends(get_current_user)):
+    """AI-powered security analysis chat."""
+    # Gather data from all accounts
+    dashboard_data = {}
+    audit_findings = []
+
+    for pid in registry.provider_ids:
+        plugin = registry.get(pid)
+        provider_dir = ACCOUNT_DATA_DIR / pid
+        if not provider_dir.exists():
+            continue
+        for acct_dir in provider_dir.iterdir():
+            if not acct_dir.is_dir():
+                continue
+            name = acct_dir.name
+            try:
+                dash = plugin.parser.parse_dashboard(name, ACCOUNT_DATA_DIR)
+                if dash and dash.get("totals"):
+                    dashboard_data = dash  # Use the most recent
+                findings = plugin.auditor.run_audit(name, ACCOUNT_DATA_DIR)
+                audit_findings.extend(findings)
+            except Exception:
+                pass
+
+    # Also check legacy dirs
+    if not dashboard_data:
+        for acct_dir in ACCOUNT_DATA_DIR.iterdir():
+            if acct_dir.is_dir() and not acct_dir.name in registry.provider_ids:
+                try:
+                    dash = registry.get("aws").parser.parse_dashboard(acct_dir.name, ACCOUNT_DATA_DIR)
+                    if dash and dash.get("totals"):
+                        dashboard_data = dash
+                    findings = registry.get("aws").auditor.run_audit(acct_dir.name, ACCOUNT_DATA_DIR)
+                    audit_findings.extend(findings)
+                except Exception:
+                    pass
+
+    waf_analysis = _analyze_waf(dashboard_data) if dashboard_data else {"overall_score": 0, "pillars": {}}
+
+    response = _generate_ai_response(req.message, dashboard_data, audit_findings, waf_analysis)
+    return {"response": response, "waf_score": waf_analysis.get("overall_score", 0)}
+
+
+# ── WELL-ARCHITECTED REPORT ──────────────────────────────────────
+@app.get("/api/waf/{account_name}")
+def get_waf_report(account_name: str, user: dict = Depends(get_current_user)):
+    """Get Well-Architected Framework analysis for an account."""
+    dashboard_data = {}
+    for pid in registry.provider_ids:
+        acct_dir = ACCOUNT_DATA_DIR / pid / account_name
+        if acct_dir.exists():
+            try:
+                dashboard_data = registry.get(pid).parser.parse_dashboard(account_name, ACCOUNT_DATA_DIR)
+                break
+            except Exception:
+                pass
+    if not dashboard_data:
+        legacy_dir = ACCOUNT_DATA_DIR / account_name
+        if legacy_dir.exists():
+            try:
+                dashboard_data = registry.get("aws").parser.parse_dashboard(account_name, ACCOUNT_DATA_DIR)
+            except Exception:
+                pass
+
+    if not dashboard_data:
+        raise HTTPException(404, f"No data for account '{account_name}'")
+
+    return _analyze_waf(dashboard_data)
+
+
+# ── COMPREHENSIVE REPORT ─────────────────────────────────────────
+
+def _gather_account_data(account_name: str):
+    """Gather all data for an account across all providers."""
+    dashboard_data = {}
+    audit_findings = []
+    iam_data = {}
+    sg_data = {}
+    resources_data = {}
+    detected_provider = "aws"
+
+    for pid in registry.provider_ids:
+        acct_dir = ACCOUNT_DATA_DIR / pid / account_name
+        if acct_dir.exists():
+            detected_provider = pid
+            plugin = registry.get(pid)
+            try:
+                dashboard_data = plugin.parser.parse_dashboard(account_name, ACCOUNT_DATA_DIR)
+            except Exception:
+                pass
+            try:
+                audit_findings = plugin.auditor.run_audit(account_name, ACCOUNT_DATA_DIR)
+            except Exception:
+                pass
+            try:
+                resources_data = plugin.parser.parse_resources(account_name, ACCOUNT_DATA_DIR)
+            except Exception:
+                pass
+            break
+
+    # IAM (AWS-specific)
+    try:
+        from providers.aws.parser import _read_json, _get_regions
+        idir = ACCOUNT_DATA_DIR / "aws" / account_name
+        if not idir.exists():
+            idir = ACCOUNT_DATA_DIR / account_name
+        regions = _get_regions(idir)
+        if regions:
+            rdir = idir / regions[0]
+            auth = _read_json(rdir / "iam-get-account-authorization-details.json")
+            summary = _read_json(rdir / "iam-get-account-summary.json")
+            iam_data = {
+                "summary": summary.get("SummaryMap", {}),
+                "users": [{"name": u.get("UserName"), "arn": u.get("Arn"),
+                           "mfa_devices": u.get("MFADevices", []),
+                           "policies": [p["PolicyName"] for p in u.get("AttachedManagedPolicies", [])],
+                           "groups": u.get("GroupList", [])}
+                          for u in auth.get("UserDetailList", [])],
+                "roles": [{"name": r.get("RoleName"), "arn": r.get("Arn"),
+                           "policies": [p["PolicyName"] for p in r.get("AttachedManagedPolicies", [])]}
+                          for r in auth.get("RoleDetailList", [])],
+            }
+    except Exception:
+        pass
+
+    # Security groups
+    try:
+        from providers.aws.parser import _read_json, _get_regions
+        sgdir = ACCOUNT_DATA_DIR / "aws" / account_name
+        if not sgdir.exists():
+            sgdir = ACCOUNT_DATA_DIR / account_name
+        regions = _get_regions(sgdir)
+        risky = []
+        for region in regions:
+            sgs = _read_json(sgdir / region / "ec2-describe-security-groups.json")
+            for sg in sgs.get("SecurityGroups", []):
+                open_rules = []
+                for rule in sg.get("IpPermissions", []):
+                    for ipr in rule.get("IpRanges", []):
+                        if ipr.get("CidrIp") == "0.0.0.0/0":
+                            open_rules.append({"protocol": rule.get("IpProtocol"), "from_port": rule.get("FromPort"), "to_port": rule.get("ToPort")})
+                if open_rules:
+                    risky.append({"region": region, "group_id": sg["GroupId"], "group_name": sg["GroupName"],
+                                  "vpc_id": sg.get("VpcId"), "open_rules": open_rules,
+                                  "severity": "CRITICAL" if any(r.get("from_port") in (22, 3389, 3306, 5432) or r.get("protocol") == "-1" for r in open_rules) else "HIGH"})
+        sg_data = {"risky_groups": risky}
+    except Exception:
+        pass
+
+    waf = _analyze_waf(dashboard_data) if dashboard_data else {"overall_score": 0, "pillars": {}}
+
+    # Build AI recommendations
+    ai_sections = {}
+    for topic in ["summary", "risk", "recommend", "compliance", "public", "iam"]:
+        ai_sections[topic] = _generate_ai_response(topic, dashboard_data, audit_findings, waf)
+
+    # Severity counts
+    sev_counts = {}
+    for f in audit_findings:
+        s = f.get("severity", "INFO")
+        sev_counts[s] = sev_counts.get(s, 0) + 1
+
+    return {
+        "account": account_name,
+        "provider": detected_provider,
+        "generated_at": datetime.now().isoformat(),
+        "dashboard": dashboard_data,
+        "audit": {
+            "total": len(audit_findings),
+            "findings": audit_findings,
+            "summary": {s: sev_counts.get(s, 0) for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]},
+        },
+        "iam": iam_data,
+        "security_groups": sg_data,
+        "waf": waf,
+        "ai_recommendations": ai_sections,
+    }
+
+
+@app.get("/api/report/{account_name}")
+def get_comprehensive_report(account_name: str, user: dict = Depends(get_current_user)):
+    """Get combined report data for all features."""
+    data = _gather_account_data(account_name)
+    if not data["dashboard"]:
+        raise HTTPException(404, f"No data for account '{account_name}'")
+    return data
+
+
+@app.get("/api/report/{account_name}/export")
+def export_comprehensive_report(account_name: str, format: str = "pdf",
+                                 user: dict = Depends(get_current_user)):
+    """Export comprehensive report as PDF or Excel."""
+    data = _gather_account_data(account_name)
+    if not data["dashboard"]:
+        raise HTTPException(404, f"No data for account '{account_name}'")
+
+    if format == "excel":
+        content = _generate_excel_report(data)
+        return Response(content=content,
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f'attachment; filename="CloudLunar-Report-{account_name}-{datetime.now().strftime("%Y%m%d")}.xlsx"'})
+    else:
+        content = _generate_comprehensive_pdf(data)
+        return Response(content=content, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="CloudLunar-Report-{account_name}-{datetime.now().strftime("%Y%m%d")}.pdf"'})
+
+
+def _generate_excel_report(data):
+    """Generate multi-sheet Excel report."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    header_font = Font(name='Calibri', bold=True, size=11, color='FFFFFF')
+    header_fill = PatternFill(start_color='4F46E5', end_color='4F46E5', fill_type='solid')
+    title_font = Font(name='Calibri', bold=True, size=14, color='1E293B')
+    sub_font = Font(name='Calibri', size=10, color='64748B')
+    border = Border(bottom=Side(style='thin', color='E2E8F0'))
+    crit_fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+    high_fill = PatternFill(start_color='FFEDD5', end_color='FFEDD5', fill_type='solid')
+    med_fill = PatternFill(start_color='FEF9C3', end_color='FEF9C3', fill_type='solid')
+    pass_fill = PatternFill(start_color='D1FAE5', end_color='D1FAE5', fill_type='solid')
+    fail_fill = PatternFill(start_color='FEE2E2', end_color='FEE2E2', fill_type='solid')
+
+    def style_header(ws, row=1, cols=10):
+        for c in range(1, cols + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    def auto_width(ws):
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = min(max_len + 4, 50)
+
+    # ── Sheet 1: Executive Summary ──
+    ws = wb.active
+    ws.title = "Executive Summary"
+    ws.merge_cells('A1:F1')
+    ws['A1'] = f"CloudLunar Security Report — {data['account']}"
+    ws['A1'].font = title_font
+    ws['A2'] = f"Generated: {data['generated_at'][:19]}  |  Provider: {data['provider'].upper()}"
+    ws['A2'].font = sub_font
+
+    dash = data.get("dashboard", {})
+    totals = dash.get("totals", {})
+    row = 4
+    ws.cell(row=row, column=1, value="Metric").font = Font(bold=True)
+    ws.cell(row=row, column=2, value="Value").font = Font(bold=True)
+    style_header(ws, row, 2)
+    metrics = [
+        ("Security Score", f"{dash.get('security_score', 0)}/100"),
+        ("WAF Overall Score", f"{data['waf'].get('overall_score', 0)}%"),
+        ("Regions Scanned", dash.get('regions_scanned', 0)),
+        ("EC2 Instances", totals.get('instances', 0)),
+        ("S3 Buckets", totals.get('buckets', 0)),
+        ("Security Groups", totals.get('security_groups', 0)),
+        ("VPCs", totals.get('vpcs', 0)),
+        ("Lambda Functions", totals.get('lambdas', 0)),
+        ("RDS Instances", totals.get('rds', 0)),
+        ("Snapshots", totals.get('snapshots', 0)),
+        ("Subnets", totals.get('subnets', 0)),
+        ("Network Interfaces", totals.get('network_interfaces', 0)),
+        ("Public IPs", len(dash.get('public_ips', []))),
+        ("Open Security Groups", dash.get('open_security_groups', 0)),
+        ("IAM Users", dash.get('iam_summary', {}).get('Users', 0)),
+        ("IAM Users without MFA", dash.get('iam_users_no_mfa', 0)),
+        ("Total Audit Findings", data['audit']['total']),
+        ("Critical Findings", data['audit']['summary'].get('CRITICAL', 0)),
+        ("High Findings", data['audit']['summary'].get('HIGH', 0)),
+        ("Medium Findings", data['audit']['summary'].get('MEDIUM', 0)),
+    ]
+    for i, (label, val) in enumerate(metrics):
+        r = row + 1 + i
+        ws.cell(row=r, column=1, value=label).border = border
+        ws.cell(row=r, column=2, value=val).border = border
+    auto_width(ws)
+
+    # ── Sheet 2: Well-Architected Framework ──
+    ws2 = wb.create_sheet("Well-Architected Framework")
+    ws2.merge_cells('A1:E1')
+    ws2['A1'] = "AWS Well-Architected Framework Assessment"
+    ws2['A1'].font = title_font
+    ws2['A2'] = f"Overall Score: {data['waf'].get('overall_score', 0)}%"
+    ws2['A2'].font = Font(bold=True, size=12, color='4F46E5')
+
+    row = 4
+    headers = ["Pillar", "Score", "Passed", "Total", "Status"]
+    for c, h in enumerate(headers, 1):
+        ws2.cell(row=row, column=c, value=h)
+    style_header(ws2, row, len(headers))
+
+    for pid, pillar in data['waf'].get('pillars', {}).items():
+        row += 1
+        ws2.cell(row=row, column=1, value=pillar['name'])
+        ws2.cell(row=row, column=2, value=f"{pillar['score']}%")
+        ws2.cell(row=row, column=3, value=pillar['passed'])
+        ws2.cell(row=row, column=4, value=pillar['total'])
+        status = "PASS" if pillar['score'] >= 80 else "WARN" if pillar['score'] >= 50 else "FAIL"
+        ws2.cell(row=row, column=5, value=status)
+        ws2.cell(row=row, column=5).fill = pass_fill if status == "PASS" else med_fill if status == "WARN" else fail_fill
+        for c in range(1, 6):
+            ws2.cell(row=row, column=c).border = border
+
+    row += 2
+    ws2.cell(row=row, column=1, value="Detailed Checks").font = Font(bold=True, size=11)
+    row += 1
+    for c, h in enumerate(["Pillar", "Check", "Result", "Recommendation"], 1):
+        ws2.cell(row=row, column=c, value=h)
+    style_header(ws2, row, 4)
+
+    for pid, pillar in data['waf'].get('pillars', {}).items():
+        for check in pillar.get('checks', []):
+            row += 1
+            ws2.cell(row=row, column=1, value=pillar['name'])
+            ws2.cell(row=row, column=2, value=check['name'])
+            ws2.cell(row=row, column=3, value="PASS" if check['passed'] else "FAIL")
+            ws2.cell(row=row, column=3).fill = pass_fill if check['passed'] else fail_fill
+            ws2.cell(row=row, column=4, value="" if check['passed'] else check['recommendation'])
+            for c in range(1, 5):
+                ws2.cell(row=row, column=c).border = border
+    auto_width(ws2)
+
+    # ── Sheet 3: Audit Findings ──
+    ws3 = wb.create_sheet("Audit Findings")
+    ws3['A1'] = f"Security Audit — {data['audit']['total']} Findings"
+    ws3['A1'].font = title_font
+    row = 3
+    headers = ["Severity", "Title", "Issue ID", "Group", "Region", "Resource"]
+    for c, h in enumerate(headers, 1):
+        ws3.cell(row=row, column=c, value=h)
+    style_header(ws3, row, len(headers))
+
+    sev_fills = {"CRITICAL": crit_fill, "HIGH": high_fill, "MEDIUM": med_fill}
+    for f in data['audit']['findings']:
+        row += 1
+        ws3.cell(row=row, column=1, value=f.get('severity', ''))
+        ws3.cell(row=row, column=1).fill = sev_fills.get(f.get('severity', ''), PatternFill())
+        ws3.cell(row=row, column=2, value=f.get('title', f.get('issue', '')))
+        ws3.cell(row=row, column=3, value=f.get('issue', ''))
+        ws3.cell(row=row, column=4, value=f.get('group', ''))
+        ws3.cell(row=row, column=5, value=f.get('region', ''))
+        ws3.cell(row=row, column=6, value=f.get('resource', ''))
+        for c in range(1, 7):
+            ws3.cell(row=row, column=c).border = border
+    auto_width(ws3)
+
+    # ── Sheet 4: IAM ──
+    ws4 = wb.create_sheet("IAM Users & Roles")
+    ws4['A1'] = "Identity & Access Management"
+    ws4['A1'].font = title_font
+    iam = data.get('iam', {})
+    row = 3
+    headers = ["Username", "ARN", "MFA Enabled", "Policies", "Groups"]
+    for c, h in enumerate(headers, 1):
+        ws4.cell(row=row, column=c, value=h)
+    style_header(ws4, row, len(headers))
+    for u in iam.get('users', []):
+        row += 1
+        ws4.cell(row=row, column=1, value=u.get('name', ''))
+        ws4.cell(row=row, column=2, value=u.get('arn', ''))
+        has_mfa = len(u.get('mfa_devices', [])) > 0
+        ws4.cell(row=row, column=3, value="Yes" if has_mfa else "No")
+        ws4.cell(row=row, column=3).fill = pass_fill if has_mfa else fail_fill
+        ws4.cell(row=row, column=4, value=', '.join(u.get('policies', [])))
+        ws4.cell(row=row, column=5, value=', '.join(u.get('groups', [])))
+        for c in range(1, 6):
+            ws4.cell(row=row, column=c).border = border
+    auto_width(ws4)
+
+    # ── Sheet 5: Security Groups ──
+    ws5 = wb.create_sheet("Risky Security Groups")
+    ws5['A1'] = "Security Groups Open to Internet"
+    ws5['A1'].font = title_font
+    row = 3
+    headers = ["Severity", "Group Name", "Group ID", "Region", "VPC", "Protocol", "Port", "CIDR"]
+    for c, h in enumerate(headers, 1):
+        ws5.cell(row=row, column=c, value=h)
+    style_header(ws5, row, len(headers))
+    for sg in data.get('security_groups', {}).get('risky_groups', []):
+        for rule in sg.get('open_rules', []):
+            row += 1
+            ws5.cell(row=row, column=1, value=sg.get('severity', ''))
+            ws5.cell(row=row, column=1).fill = crit_fill if sg.get('severity') == 'CRITICAL' else high_fill
+            ws5.cell(row=row, column=2, value=sg.get('group_name', ''))
+            ws5.cell(row=row, column=3, value=sg.get('group_id', ''))
+            ws5.cell(row=row, column=4, value=sg.get('region', ''))
+            ws5.cell(row=row, column=5, value=sg.get('vpc_id', ''))
+            proto = rule.get('protocol', '')
+            ws5.cell(row=row, column=6, value='ALL' if proto == '-1' else proto.upper())
+            ws5.cell(row=row, column=7, value=str(rule.get('from_port', 'ALL')))
+            ws5.cell(row=row, column=8, value='0.0.0.0/0')
+            for c in range(1, 9):
+                ws5.cell(row=row, column=c).border = border
+    auto_width(ws5)
+
+    # ── Sheet 6: Region Matrix ──
+    ws6 = wb.create_sheet("Region Matrix")
+    ws6['A1'] = "Resource Distribution by Region"
+    ws6['A1'].font = title_font
+    rm = dash.get('region_matrix', {})
+    if rm:
+        res_keys = list(next(iter(rm.values())).keys()) if rm else []
+        row = 3
+        headers = ["Region"] + [k.replace('_', ' ').title() for k in res_keys] + ["Total"]
+        for c, h in enumerate(headers, 1):
+            ws6.cell(row=row, column=c, value=h)
+        style_header(ws6, row, len(headers))
+        for region, resources in sorted(rm.items(), key=lambda x: sum(x[1].values()), reverse=True):
+            row += 1
+            ws6.cell(row=row, column=1, value=region)
+            total = 0
+            for ci, key in enumerate(res_keys):
+                val = resources.get(key, 0)
+                total += val
+                ws6.cell(row=row, column=ci + 2, value=val if val > 0 else "")
+            ws6.cell(row=row, column=len(res_keys) + 2, value=total)
+            for c in range(1, len(headers) + 1):
+                ws6.cell(row=row, column=c).border = border
+    auto_width(ws6)
+
+    # ── Sheet 7: AI Recommendations ──
+    ws7 = wb.create_sheet("AI Recommendations")
+    ws7['A1'] = "CloudLunar AI — Security Intelligence Report"
+    ws7['A1'].font = title_font
+    ws7['A2'] = f"WAF Score: {data['waf'].get('overall_score', 0)}%  |  Security Score: {dash.get('security_score', 0)}/100"
+    ws7['A2'].font = Font(bold=True, size=11, color='4F46E5')
+    row = 4
+    for topic, content in data.get('ai_recommendations', {}).items():
+        ws7.cell(row=row, column=1, value=content)
+        ws7.cell(row=row, column=1).alignment = Alignment(wrap_text=True)
+        ws7.row_dimensions[row].height = max(30, len(content.split('\n')) * 15)
+        ws7.column_dimensions['A'].width = 120
+        row += 1
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _generate_comprehensive_pdf(data):
+    """Generate comprehensive PDF report with all sections."""
+    import io
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20*mm, bottomMargin=15*mm, leftMargin=15*mm, rightMargin=15*mm)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('CustomTitle', parent=styles['Title'], fontSize=20, textColor=colors.HexColor('#1E293B'), spaceAfter=5)
+    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor('#4F46E5'), spaceBefore=15, spaceAfter=8)
+    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor('#334155'), spaceBefore=10, spaceAfter=5)
+    body = ParagraphStyle('Body', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#475569'), leading=13)
+    small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94A3B8'))
+
+    elements = []
+    dash = data.get("dashboard", {})
+    totals = dash.get("totals", {})
+
+    # Title
+    elements.append(Paragraph(f"CloudLunar Security Report", title_style))
+    elements.append(Paragraph(f"Account: {data['account']}  |  Provider: {data['provider'].upper()}  |  Generated: {data['generated_at'][:19]}", small))
+    elements.append(Spacer(1, 10))
+
+    # Executive Summary table
+    elements.append(Paragraph("Executive Summary", h1))
+    summary_data = [
+        ["Security Score", f"{dash.get('security_score', 0)}/100", "WAF Score", f"{data['waf'].get('overall_score', 0)}%"],
+        ["EC2 Instances", str(totals.get('instances', 0)), "S3 Buckets", str(totals.get('buckets', 0))],
+        ["Security Groups", str(totals.get('security_groups', 0)), "Lambda Functions", str(totals.get('lambdas', 0))],
+        ["VPCs", str(totals.get('vpcs', 0)), "RDS Instances", str(totals.get('rds', 0))],
+        ["Open SGs", str(dash.get('open_security_groups', 0)), "Public IPs", str(len(dash.get('public_ips', [])))],
+        ["IAM Users", str(dash.get('iam_summary', {}).get('Users', 0)), "Users w/o MFA", str(dash.get('iam_users_no_mfa', 0))],
+        ["Total Findings", str(data['audit']['total']), "Critical", str(data['audit']['summary'].get('CRITICAL', 0))],
+    ]
+    t = Table(summary_data, colWidths=[80, 70, 80, 70])
+    t.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'), ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748B')),
+        ('TEXTCOLOR', (2, 0), (2, -1), colors.HexColor('#64748B')),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (3, 0), (3, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(t)
+
+    # WAF Section
+    elements.append(Paragraph("Well-Architected Framework Assessment", h1))
+    waf_rows = [["Pillar", "Score", "Passed", "Total", "Status"]]
+    for pid, pillar in data['waf'].get('pillars', {}).items():
+        status = "PASS" if pillar['score'] >= 80 else "WARN" if pillar['score'] >= 50 else "FAIL"
+        waf_rows.append([pillar['name'], f"{pillar['score']}%", str(pillar['passed']), str(pillar['total']), status])
+    waf_rows.append(["Overall", f"{data['waf'].get('overall_score', 0)}%", "", "", ""])
+
+    t = Table(waf_rows, colWidths=[100, 50, 50, 50, 50])
+    style_list = [
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#F1F5F9')),
+    ]
+    for i, row in enumerate(waf_rows[1:-1], 1):
+        if row[4] == "FAIL":
+            style_list.append(('BACKGROUND', (4, i), (4, i), colors.HexColor('#FEE2E2')))
+        elif row[4] == "WARN":
+            style_list.append(('BACKGROUND', (4, i), (4, i), colors.HexColor('#FEF9C3')))
+        elif row[4] == "PASS":
+            style_list.append(('BACKGROUND', (4, i), (4, i), colors.HexColor('#D1FAE5')))
+    t.setStyle(TableStyle(style_list))
+    elements.append(t)
+
+    # WAF Checks
+    elements.append(Paragraph("Detailed WAF Checks", h2))
+    for pid, pillar in data['waf'].get('pillars', {}).items():
+        for check in pillar.get('checks', []):
+            status = "✓" if check['passed'] else "✗"
+            color = '#10B981' if check['passed'] else '#EF4444'
+            text = f"<font color='{color}'>{status}</font> <b>{pillar['name']}</b> — {check['name']}"
+            if not check['passed']:
+                text += f" <font color='#94A3B8'>({check['recommendation']})</font>"
+            elements.append(Paragraph(text, body))
+
+    elements.append(PageBreak())
+
+    # Audit Findings
+    elements.append(Paragraph("Security Audit Findings", h1))
+    elements.append(Paragraph(f"Total: {data['audit']['total']}  |  Critical: {data['audit']['summary'].get('CRITICAL',0)}  |  High: {data['audit']['summary'].get('HIGH',0)}  |  Medium: {data['audit']['summary'].get('MEDIUM',0)}", small))
+    elements.append(Spacer(1, 5))
+
+    audit_rows = [["Severity", "Title", "Region", "Resource"]]
+    for f in data['audit']['findings'][:100]:
+        audit_rows.append([
+            f.get('severity', ''),
+            (f.get('title', '') or f.get('issue', ''))[:60],
+            f.get('region', '') or '',
+            (f.get('resource', '') or '')[:40],
+        ])
+    t = Table(audit_rows, colWidths=[55, 180, 70, 120])
+    style_list = [
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#E2E8F0')),
+        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]
+    sev_colors = {"CRITICAL": '#FEE2E2', "HIGH": '#FFEDD5', "MEDIUM": '#FEF9C3'}
+    for i, row in enumerate(audit_rows[1:], 1):
+        if row[0] in sev_colors:
+            style_list.append(('BACKGROUND', (0, i), (0, i), colors.HexColor(sev_colors[row[0]])))
+    t.setStyle(TableStyle(style_list))
+    elements.append(t)
+
+    elements.append(PageBreak())
+
+    # AI Recommendations
+    elements.append(Paragraph("AI Security Intelligence Report", h1))
+    elements.append(Paragraph(f"CloudLunar AI analysis based on your infrastructure scan data", small))
+    elements.append(Spacer(1, 8))
+    for topic, content in data.get('ai_recommendations', {}).items():
+        for line in content.split('\n'):
+            if line.startswith('## '):
+                elements.append(Paragraph(line[3:], h2))
+            elif line.startswith('**') and line.endswith('**'):
+                elements.append(Paragraph(f"<b>{line.strip('*')}</b>", body))
+            elif line.startswith('- '):
+                elements.append(Paragraph(f"• {line[2:]}", body))
+            elif line.strip():
+                elements.append(Paragraph(line, body))
+
+    doc.build(elements)
+    return buf.getvalue()
+
+
 # ── HEALTH ───────────────────────────────────────────────────────
 @app.get("/api/health")
 def health():
