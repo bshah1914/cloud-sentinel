@@ -16,6 +16,7 @@ import Report from './pages/Report';
 import Compliance from './pages/Compliance';
 import Docs from './pages/Docs';
 import Threats from './pages/Threats';
+import Pricing from './pages/Pricing';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -47,6 +48,7 @@ function ProtectedRoutes() {
         <Route path="/compliance" element={<Compliance />} />
         <Route path="/docs" element={<Docs />} />
         <Route path="/threats" element={<Threats />} />
+        <Route path="/pricing" element={<Pricing />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

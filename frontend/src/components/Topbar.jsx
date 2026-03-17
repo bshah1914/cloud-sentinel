@@ -21,6 +21,7 @@ const PAGE_TITLES = {
   '/compliance': 'Cloud Compliance',
   '/docs': 'Documentation',
   '/threats': 'Threat Detection',
+  '/pricing': 'Subscription Plans',
 };
 
 export default function Topbar({ account, provider, onAccountChange, accounts }) {
