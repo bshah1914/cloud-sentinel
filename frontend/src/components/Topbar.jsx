@@ -19,6 +19,7 @@ const PAGE_TITLES = {
   '/iam': 'IAM Report', '/security-groups': 'Security Groups',
   '/users': 'User Management', '/report': 'Comprehensive Report',
   '/compliance': 'Cloud Compliance',
+  '/docs': 'Documentation',
 };
 
 export default function Topbar({ account, provider, onAccountChange, accounts }) {

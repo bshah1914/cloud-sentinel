@@ -14,6 +14,7 @@ import Scan from './pages/Scan';
 import Users from './pages/Users';
 import Report from './pages/Report';
 import Compliance from './pages/Compliance';
+import Docs from './pages/Docs';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -43,6 +44,7 @@ function ProtectedRoutes() {
         <Route path="/users" element={<Users />} />
         <Route path="/report" element={<Report />} />
         <Route path="/compliance" element={<Compliance />} />
+        <Route path="/docs" element={<Docs />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
