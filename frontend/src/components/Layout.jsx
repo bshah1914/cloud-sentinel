@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import AiChat from './AiChat';
+import CommandPalette from './CommandPalette';
 import { getAccounts } from '../api';
 
 export default function Layout() {
@@ -83,6 +84,7 @@ export default function Layout() {
       </motion.div>
 
       <AiChat />
+      <CommandPalette />
     </div>
   );
 }
