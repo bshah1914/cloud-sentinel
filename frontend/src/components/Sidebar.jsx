@@ -115,7 +115,7 @@ export default function Sidebar({ collapsed, onToggle, activeProvider }) {
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest px-3 pt-4 pb-1.5"
+                  className="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest px-3 pt-2.5 pb-1"
                 >
                   {SECTIONS[section]}
                 </motion.p>
@@ -125,7 +125,7 @@ export default function Sidebar({ collapsed, onToggle, activeProvider }) {
                   to={to}
                   end={to === '/'}
                   className={({ isActive }) => clsx(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative',
+                    'flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all duration-200 relative',
                     isActive
                       ? 'bg-primary/12 text-primary-light nav-active-indicator shadow-sm shadow-primary/5'
                       : 'text-text-muted hover:text-text hover:bg-white/[0.03]'
@@ -134,10 +134,10 @@ export default function Sidebar({ collapsed, onToggle, activeProvider }) {
                   {({ isActive }) => (
                     <>
                       <div className={clsx(
-                        'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all',
+                        'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all',
                         isActive ? 'bg-primary/15' : 'bg-transparent'
                       )}>
-                        <Icon className={clsx('w-[18px] h-[18px]', isActive && 'text-primary-light')} />
+                        <Icon className={clsx('w-4 h-4', isActive && 'text-primary-light')} />
                       </div>
                       <AnimatePresence>
                         {!collapsed && (
