@@ -20,6 +20,7 @@ import Pricing from './pages/Pricing';
 import Support from './pages/Support';
 import AdminPanel from './pages/AdminPanel';
 import ClientDashboard from './pages/ClientDashboard';
+import MyAccount from './pages/MyAccount';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -73,7 +74,7 @@ function ProtectedRoutes() {
             <Route path="/resources" element={<Resources />} />
             <Route path="/scan" element={<Scan />} />
             <Route path="/support" element={<Support />} />
-            <Route path="/my-account" element={<ClientDashboard />} />
+            <Route path="/my-account" element={<MyAccount />} />
           </>
         )}
       </Route>
