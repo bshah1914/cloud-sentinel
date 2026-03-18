@@ -1,0 +1,10 @@
+{
+    "accounts": [
+        {
+            "id": "YOUR_ACCOUNT_ID",
+            "name": "YOUR_ACCOUNT_NAME",
+            "default": true
+        }
+    ],
+    "cidrs": {}
+}
