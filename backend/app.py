@@ -1436,7 +1436,17 @@ def _detect_threats(account_name: str) -> dict:
     total = len(threats)
     crit = sev_counts.get("CRITICAL", 0)
     high = sev_counts.get("HIGH", 0)
-    risk_score = min(100, max(0, 100 - crit * 12 - high * 4 - sev_counts.get("MEDIUM", 0) * 1))
+    # Health score based on threat severity distribution
+    medium = sev_counts.get("MEDIUM", 0)
+    low = sev_counts.get("LOW", 0)
+    if total == 0:
+        risk_score = 100
+    else:
+        # Score based on ratio of non-critical threats
+        crit_ratio = crit / total        # 0 to 1
+        high_ratio = high / total        # 0 to 1
+        # 100 = no threats, 0 = all critical
+        risk_score = max(5, min(100, round(100 - crit_ratio * 60 - high_ratio * 30 - (medium / max(total, 1)) * 10)))
 
     return {
         "account": account_name,
