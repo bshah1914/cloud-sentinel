@@ -3,9 +3,9 @@ import { useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, CheckCircle2, XCircle, MapPin, HardDrive,
-  Network, X, Cloud
+  Network, X, Cloud, Globe, Shield, Layers
 } from 'lucide-react';
-import { getAccounts, addAccount, removeAccount, getCIDRs, addCIDR, removeCIDR } from '../api';
+import { getAccounts, addAccount, removeAccount, getCIDRs, addCIDR, removeCIDR, getVpcCidrs } from '../api';
 import Card from '../components/Card';
 import Loader from '../components/Loader';
 
@@ -13,6 +13,7 @@ export default function Accounts() {
   const { refreshAccounts } = useOutletContext();
   const [accounts, setAccounts] = useState([]);
   const [cidrs, setCidrs] = useState([]);
+  const [vpcCidrs, setVpcCidrs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showAddCIDR, setShowAddCIDR] = useState(false);
@@ -26,6 +27,11 @@ export default function Accounts() {
       const [acctRes, cidrRes] = await Promise.all([getAccounts(), getCIDRs()]);
       setAccounts(acctRes.accounts || []);
       setCidrs(cidrRes.cidrs || []);
+      // Load VPC CIDRs for each account that has data
+      const accts = acctRes.accounts || [];
+      const vpcPromises = accts.filter(a => a.has_data).map(a => getVpcCidrs(a.name).catch(() => ({ vpc_cidrs: [] })));
+      const vpcResults = await Promise.all(vpcPromises);
+      setVpcCidrs(vpcResults.flatMap(r => r.vpc_cidrs || []));
     } catch (e) { setError(e.message); }
     setLoading(false);
   };
@@ -243,6 +249,65 @@ export default function Accounts() {
             ))}
           </div>
         </Card>
+      )}
+      {/* VPC CIDRs from Scan Data */}
+      {vpcCidrs.length > 0 && (
+        <>
+          <div className="flex items-center justify-between mt-8">
+            <h2 className="text-sm font-semibold text-text flex items-center gap-2">
+              <Globe className="w-4 h-4 text-primary-light" /> VPC CIDRs (from scan)
+              <span className="text-[10px] text-text-muted bg-surface-lighter/50 px-2 py-0.5 rounded-md">{vpcCidrs.length}</span>
+            </h2>
+          </div>
+          <Card hover={false}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-text-muted border-b border-border/50">
+                    {['VPC ID', 'CIDR Block', 'Name', 'Region', 'Subnets', 'State', 'Default'].map(h => (
+                      <th key={h} className="pb-2.5 text-left font-medium text-[10px] uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {vpcCidrs.map((vpc, i) => (
+                    <motion.tr key={`${vpc.vpc_id}-${i}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      transition={{ delay: i * 0.02 }}
+                      className="border-b border-border/15 hover:bg-surface/20 transition-all">
+                      <td className="py-2.5 font-mono text-text-muted text-[11px]">{vpc.vpc_id}</td>
+                      <td className="py-2.5">
+                        <span className="font-mono text-sm text-accent font-semibold">{vpc.cidr}</span>
+                      </td>
+                      <td className="py-2.5 text-text">{vpc.name || '-'}</td>
+                      <td className="py-2.5">
+                        <span className="flex items-center gap-1 text-text-muted">
+                          <MapPin className="w-3 h-3" />{vpc.region}
+                        </span>
+                      </td>
+                      <td className="py-2.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary-light text-[10px] font-medium">
+                          <Layers className="w-3 h-3" />{vpc.subnets}
+                        </span>
+                      </td>
+                      <td className="py-2.5">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${
+                          vpc.state === 'available' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                        }`}>{vpc.state}</span>
+                      </td>
+                      <td className="py-2.5">
+                        {vpc.is_default ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 font-medium">Default</span>
+                        ) : (
+                          <span className="text-text-muted text-[10px]">Custom</span>
+                        )}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
       )}
     </div>
   );

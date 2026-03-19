@@ -121,6 +121,82 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Logging Setup ────────────────────────────────────────────────
+from services.app_logger import app_log, access_log, auth_log, scan_log, security_log, export_log, log_startup
+from services.audit import log_action
+from starlette.middleware.base import BaseHTTPMiddleware
+import time as _time
+
+class AuditMiddleware(BaseHTTPMiddleware):
+    """Log all API requests to access log and audit trail."""
+    SKIP_PATHS = {"/api/health", "/api/auth/me", "/docs", "/openapi.json", "/favicon.ico"}
+    AUDIT_ACTIONS = {
+        "POST /api/auth/login": "auth.login",
+        "POST /api/scan/start": "scan.started",
+        "POST /api/accounts": "account.added",
+        "DELETE /api/accounts": "account.removed",
+        "POST /api/cidrs": "cidr.added",
+        "DELETE /api/cidrs": "cidr.removed",
+        "GET /api/export": "report.exported",
+        "POST /api/compliance/scan": "compliance.scan",
+        "GET /api/report": "report.viewed",
+        "POST /api/v2/scans": "scan.started_v2",
+        "POST /api/v2/accounts": "account.added_v2",
+        "POST /api/v2/alert-rules": "alert.rule_created",
+        "POST /api/v2/schedules": "schedule.created",
+        "POST /api/v2/remediation": "remediation.executed",
+        "POST /api/admin/clients": "admin.client_added",
+        "DELETE /api/admin/clients": "admin.client_removed",
+        "POST /api/admin/users": "admin.user_created",
+        "POST /api/ai/chat": "ai.chat",
+    }
+
+    async def dispatch(self, request, call_next):
+        start = _time.time()
+        method = request.method
+        path = request.url.path
+        ip = request.client.host if request.client else "unknown"
+        ua = request.headers.get("user-agent", "")[:100]
+
+        response = await call_next(request)
+        duration = round((_time.time() - start) * 1000)
+        status = response.status_code
+
+        # Access log (skip health checks)
+        if path not in self.SKIP_PATHS:
+            access_log.info(f"{method} {path} {status} {duration}ms {ip}")
+
+        # Audit trail for important actions
+        action_key = f"{method} {path}"
+        for pattern, action in self.AUDIT_ACTIONS.items():
+            pmethod, ppath = pattern.split(" ", 1)
+            if method == pmethod and path.startswith(ppath):
+                # Extract username from token if possible
+                username = None
+                org_id = None
+                auth_header = request.headers.get("authorization", "")
+                if auth_header.startswith("Bearer "):
+                    try:
+                        payload = jwt.decode(auth_header[7:], SECRET_KEY, algorithms=[ALGORITHM])
+                        username = payload.get("sub")
+                        org_id = payload.get("org_id")
+                    except Exception:
+                        pass
+
+                log_action(
+                    org_id=org_id, username=username, action=action,
+                    resource_type=path.split("/")[2] if len(path.split("/")) > 2 else None,
+                    resource_id=path.split("/")[-1] if len(path.split("/")) > 3 else None,
+                    details={"status": status, "duration_ms": duration, "method": method, "path": path},
+                    ip_address=ip, user_agent=ua[:200],
+                )
+                break
+
+        return response
+
+app.add_middleware(AuditMiddleware)
+log_startup()
+
 _init_admin()
 
 # ── Register Provider Plugins ────────────────────────────────────
@@ -149,6 +225,22 @@ registry.register("gcp", GCPCollector(), GCPParser(), GCPAuditor(), GCPRoutes())
 for pid in registry.provider_ids:
     plugin = registry.get(pid)
     plugin.routes.register_routes(app, get_current_user, ACCOUNT_DATA_DIR)
+
+
+# ── Enterprise: Database + Services ────────────────────────────
+try:
+    from models.database import init_db
+    from services.seed import seed_database
+    from services.scheduler import start_scheduler
+    from routes.enterprise import register_enterprise_routes
+
+    init_db()
+    seed_database()
+    register_enterprise_routes(app, get_current_user)
+    start_scheduler()
+    print("[Enterprise] Database, services, and scheduler initialized")
+except Exception as e:
+    print(f"[Enterprise] Init warning (non-fatal): {e}")
 
 
 # ── In-memory State ─────────────────────────────────────────────
@@ -249,10 +341,15 @@ import tenants as tenant_mgr
 
 # ── AUTH ENDPOINTS ───────────────────────────────────────────────
 @app.post("/api/auth/login")
-def login(req: LoginRequest):
+def login(req: LoginRequest, request: __import__("fastapi").Request = None):
+    ip = request.client.host if request and request.client else "unknown"
+
     # Try owner/admin login first
     user = _authenticate_user(req.username, req.password)
     if user:
+        auth_log.info(f"LOGIN_SUCCESS owner={req.username} ip={ip}")
+        log_action(username=req.username, action="auth.login",
+                   details={"type": "owner", "role": user["role"]}, ip_address=ip)
         token = _create_token(
             {"sub": user["username"], "role": user["role"], "user_type": "owner"},
             timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -266,7 +363,11 @@ def login(req: LoginRequest):
     client_user = tenant_mgr.authenticate_client_user(req.username, req.password)
     if client_user:
         if isinstance(client_user, dict) and "error" in client_user:
+            auth_log.warning(f"LOGIN_BLOCKED user={req.username} reason={client_user['error']} ip={ip}")
             raise HTTPException(403, client_user["error"])
+        auth_log.info(f"LOGIN_SUCCESS client={req.username} org={client_user.get('org_id')} ip={ip}")
+        log_action(org_id=client_user.get("org_id"), username=req.username, action="auth.login",
+                   details={"type": "client", "org": client_user.get("org_name")}, ip_address=ip)
         token = _create_token(
             {"sub": client_user["username"], "role": client_user["role"],
              "user_type": "client", "org_id": client_user["org_id"]},
@@ -281,6 +382,9 @@ def login(req: LoginRequest):
             },
         }
 
+    auth_log.warning(f"LOGIN_FAILED user={req.username} ip={ip}")
+    log_action(username=req.username, action="auth.login_failed",
+               details={"reason": "invalid_credentials"}, ip_address=ip)
     raise HTTPException(401, "Invalid username or password")
 
 
@@ -586,18 +690,73 @@ def add_cidr(cidr_in: CIDRIn, user: dict = Depends(get_current_user)):
     return {"status": "ok"}
 
 
-@app.delete("/api/cidrs/{cidr}")
+@app.delete("/api/cidrs/{cidr:path}")
 def remove_cidr(cidr: str, user: dict = Depends(get_current_user)):
+    from urllib.parse import unquote
+    cidr = unquote(cidr)
     config = _load_config()
     config.get("cidrs", {}).pop(cidr, None)
     _save_config(config)
     return {"status": "ok"}
 
 
+# ── VPC CIDRs (from scan data) ─────────────────────────────────
+@app.get("/api/vpc-cidrs/{account_name}")
+def get_vpc_cidrs(account_name: str, user: dict = Depends(get_current_user)):
+    """Get all VPC CIDRs from scanned account data."""
+    vpc_cidrs = []
+    for pid in ["aws"]:
+        acct_dir = ACCOUNT_DATA_DIR / pid / account_name
+        if not acct_dir.exists():
+            acct_dir = ACCOUNT_DATA_DIR / account_name
+        if not acct_dir.exists():
+            continue
+        for region_dir in sorted(acct_dir.iterdir()):
+            if not region_dir.is_dir():
+                continue
+            vpc_file = region_dir / "ec2-describe-vpcs.json"
+            if vpc_file.exists():
+                try:
+                    data = json.load(open(vpc_file))
+                    for vpc in data.get("Vpcs", []):
+                        cidr = vpc.get("CidrBlock", "")
+                        vpc_id = vpc.get("VpcId", "")
+                        name = ""
+                        for tag in vpc.get("Tags", []):
+                            if tag.get("Key") == "Name":
+                                name = tag.get("Value", "")
+                        is_default = vpc.get("IsDefault", False)
+                        state = vpc.get("State", "")
+                        # Subnet count
+                        subnet_file = region_dir / "ec2-describe-subnets.json"
+                        subnet_count = 0
+                        if subnet_file.exists():
+                            try:
+                                subnets = json.load(open(subnet_file)).get("Subnets", [])
+                                subnet_count = sum(1 for s in subnets if s.get("VpcId") == vpc_id)
+                            except Exception:
+                                pass
+                        vpc_cidrs.append({
+                            "vpc_id": vpc_id,
+                            "cidr": cidr,
+                            "name": name or ("Default VPC" if is_default else ""),
+                            "region": region_dir.name,
+                            "state": state,
+                            "is_default": is_default,
+                            "subnets": subnet_count,
+                        })
+                except Exception:
+                    pass
+    return {"vpc_cidrs": vpc_cidrs, "total": len(vpc_cidrs)}
+
+
 # ── UNIFIED SCAN (Multi-Cloud) ──────────────────────────────────
 @app.post("/api/scan/start")
 def start_scan(req: ScanRequestModel, user: dict = Depends(get_current_user)):
     """Start a background scan for any cloud provider."""
+    scan_log.info(f"SCAN_START user={user.get('username')} provider={req.provider} account={req.account_name}")
+    log_action(org_id=user.get("org_id"), username=user.get("username"), action="scan.started",
+               resource_type="scan", details={"provider": req.provider, "account": req.account_name})
     provider_id = req.provider
     plugin = registry.get(provider_id)
     if not plugin:
@@ -920,6 +1079,9 @@ from report_generator import (
 def export_dashboard(provider: str, account_name: str, format: str = "pdf",
                      user: dict = Depends(get_current_user)):
     """Export dashboard report as PDF or CSV."""
+    export_log.info(f"EXPORT dashboard format={format} account={account_name} user={user.get('username')}")
+    log_action(org_id=user.get("org_id"), username=user.get("username"), action="report.exported",
+               resource_type="dashboard", details={"format": format, "account": account_name})
     plugin = registry.get(provider)
     if not plugin:
         raise HTTPException(400, f"Unknown provider '{provider}'")
@@ -2438,150 +2600,224 @@ def _generate_excel_report(data):
 
 
 def _generate_comprehensive_pdf(data):
-    """Generate comprehensive PDF report with all sections."""
-    import io
+    """Generate comprehensive PDF report — enterprise quality."""
+    from report_generator import _bar, _ring, _kpi, _sec, _tbl, _footer, _ss, H, C, UW, M
+    import io as _io
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from reportlab.platypus import SimpleDocTemplate, Spacer, KeepTogether, Paragraph, Table, TableStyle, HRFlowable
+    from reportlab.lib.units import mm as _mm
+    from reportlab.lib import colors as clr
 
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20*mm, bottomMargin=15*mm, leftMargin=15*mm, rightMargin=15*mm)
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('CustomTitle', parent=styles['Title'], fontSize=20, textColor=colors.HexColor('#1E293B'), spaceAfter=5)
-    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor('#4F46E5'), spaceBefore=15, spaceAfter=8)
-    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor('#334155'), spaceBefore=10, spaceAfter=5)
-    body = ParagraphStyle('Body', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#475569'), leading=13)
-    small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94A3B8'))
+    buf = _io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=12*_mm, bottomMargin=14*_mm)
+    ss = _ss()
+    el = []
 
-    elements = []
     dash = data.get("dashboard", {})
     totals = dash.get("totals", {})
+    audit = data.get("audit", {})
+    waf = data.get("waf", {})
+    iam_s = dash.get("iam_summary", {})
 
-    # Title
-    elements.append(Paragraph(f"CloudSentinel Security Report", title_style))
-    elements.append(Paragraph(f"Account: {data['account']}  |  Provider: {data['provider'].upper()}  |  Generated: {data['generated_at'][:19]}", small))
-    elements.append(Spacer(1, 10))
+    # ── Header ──
+    el.append(_bar())
+    el.append(Spacer(1, 6))
+    el.append(Paragraph("CloudSentinel", ss["T1"]))
+    el.append(Paragraph("Comprehensive Security Report", ss["T2"]))
+    el.append(Spacer(1, 5))
 
-    # Executive Summary table
-    elements.append(Paragraph("Executive Summary", h1))
-    summary_data = [
-        ["Security Score", f"{dash.get('security_score', 0)}/100", "WAF Score", f"{data['waf'].get('overall_score', 0)}%"],
-        ["EC2 Instances", str(totals.get('instances', 0)), "S3 Buckets", str(totals.get('buckets', 0))],
-        ["Security Groups", str(totals.get('security_groups', 0)), "Lambda Functions", str(totals.get('lambdas', 0))],
-        ["VPCs", str(totals.get('vpcs', 0)), "RDS Instances", str(totals.get('rds', 0))],
-        ["Open SGs", str(dash.get('open_security_groups', 0)), "Public IPs", str(len(dash.get('public_ips', [])))],
-        ["IAM Users", str(dash.get('iam_summary', {}).get('Users', 0)), "Users w/o MFA", str(dash.get('iam_users_no_mfa', 0))],
-        ["Total Findings", str(data['audit']['total']), "Critical", str(data['audit']['summary'].get('CRITICAL', 0))],
-    ]
-    t = Table(summary_data, colWidths=[80, 70, 80, 70])
-    t.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'), ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748B')),
-        ('TEXTCOLOR', (2, 0), (2, -1), colors.HexColor('#64748B')),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (3, 0), (3, -1), 'Helvetica-Bold'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    P = Paragraph
+    prov = {"aws": "Amazon Web Services", "azure": "Microsoft Azure", "gcp": "Google Cloud Platform"}.get(data.get("provider", "aws"), data.get("provider", ""))
+    now = data.get("generated_at", "")[:19]
+    info = Table([[
+        P(f'<font size="6" color="{C["mut"]}">Account</font><br/><b>{data.get("account","")}</b>', ss["Bd"]),
+        P(f'<font size="6" color="{C["mut"]}">Provider</font><br/><b>{prov}</b>', ss["Bd"]),
+        P(f'<font size="6" color="{C["mut"]}">Generated</font><br/><b>{now}</b>', ss["Bd"]),
+    ]], colWidths=[UW/3]*3)
+    info.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), H(C["bg"])), ("BOX", (0,0), (-1,-1), 0.3, H(C["bdr"])),
+        ("TOPPADDING", (0,0), (-1,-1), 5), ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+        ("LEFTPADDING", (0,0), (-1,-1), 8), ("LINEAFTER", (0,0), (1,0), 0.3, H(C["bdr"])),
     ]))
-    elements.append(t)
+    el.append(info)
+    el.append(Spacer(1, 8))
 
-    # WAF Section
-    elements.append(Paragraph("Well-Architected Framework Assessment", h1))
-    waf_rows = [["Pillar", "Score", "Passed", "Total", "Status"]]
-    for pid, pillar in data['waf'].get('pillars', {}).items():
-        status = "PASS" if pillar['score'] >= 80 else "WARN" if pillar['score'] >= 50 else "FAIL"
-        waf_rows.append([pillar['name'], f"{pillar['score']}%", str(pillar['passed']), str(pillar['total']), status])
-    waf_rows.append(["Overall", f"{data['waf'].get('overall_score', 0)}%", "", "", ""])
+    # ── KPIs ──
+    score = dash.get("security_score", 0)
+    waf_score = waf.get("overall_score", 0)
+    tres = sum(v for v in totals.values() if isinstance(v, int))
+    osg = dash.get("open_security_groups", 0)
+    pips = len(dash.get("public_ips", []))
 
-    t = Table(waf_rows, colWidths=[100, 50, 50, 50, 50])
-    style_list = [
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
-        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#F1F5F9')),
-    ]
-    for i, row in enumerate(waf_rows[1:-1], 1):
-        if row[4] == "FAIL":
-            style_list.append(('BACKGROUND', (4, i), (4, i), colors.HexColor('#FEE2E2')))
-        elif row[4] == "WARN":
-            style_list.append(('BACKGROUND', (4, i), (4, i), colors.HexColor('#FEF9C3')))
-        elif row[4] == "PASS":
-            style_list.append(('BACKGROUND', (4, i), (4, i), colors.HexColor('#D1FAE5')))
-    t.setStyle(TableStyle(style_list))
-    elements.append(t)
+    kpi = Table([[_ring(score), _kpi(waf_score, "WAF %", C["acc"]), _kpi(tres, "Resources", C["blu"]),
+                  _kpi(audit.get("total", 0), "Findings", C["org"]), _kpi(osg, "Open SGs", C["red"]),
+                  _kpi(iam_s.get("Users", 0), "IAM Users", C["pri"])
+                  ]], colWidths=[70, 65, 65, 65, 65, 65])
+    kpi.setStyle(TableStyle([("ALIGN", (0,0), (-1,-1), "CENTER"), ("VALIGN", (0,0), (-1,-1), "MIDDLE")]))
+    el.append(kpi)
+    el.append(Spacer(1, 6))
 
-    # WAF Checks
-    elements.append(Paragraph("Detailed WAF Checks", h2))
-    for pid, pillar in data['waf'].get('pillars', {}).items():
-        for check in pillar.get('checks', []):
-            status = "✓" if check['passed'] else "✗"
-            color = '#10B981' if check['passed'] else '#EF4444'
-            text = f"<font color='{color}'>{status}</font> <b>{pillar['name']}</b> — {check['name']}"
-            if not check['passed']:
-                text += f" <font color='#94A3B8'>({check['recommendation']})</font>"
-            elements.append(Paragraph(text, body))
+    # ── Resource Summary ──
+    RN = {"instances": "EC2", "security_groups": "SGs", "vpcs": "VPCs", "subnets": "Subnets",
+          "lambdas": "Lambda", "buckets": "S3", "rds": "RDS", "elbs": "ELBs",
+          "snapshots": "Snapshots", "network_interfaces": "NICs"}
+    res = [[RN.get(k, k), str(v)] for k, v in totals.items() if v]
+    if res:
+        mid = (len(res)+1)//2
+        L, R = res[:mid], res[mid:]
+        while len(R) < len(L): R.append(["",""])
+        rows = [[L[i][0], L[i][1], R[i][0], R[i][1]] for i in range(len(L))]
+        sec = _sec("Resources", f"{tres} total across {dash.get('regions_scanned',0)} regions")
+        t = _tbl(["Resource", "Count", "Resource", "Count"], rows,
+                 [UW*0.30, UW*0.12, UW*0.30, UW*0.12])
+        t.setStyle(TableStyle([("LINEAFTER", (1,0), (1,-1), 0.3, H(C["bdr"]))]))
+        el.append(KeepTogether(sec + [t]))
+    el.append(Spacer(1, 4))
 
-    elements.append(PageBreak())
+    # ── WAF Assessment ──
+    sec = _sec("Well-Architected Framework", f"Overall: {waf_score}%")
+    rows = []
+    for pid, pillar in waf.get("pillars", {}).items():
+        st = "PASS" if pillar["score"] >= 80 else "WARN" if pillar["score"] >= 50 else "FAIL"
+        rows.append([pillar["name"], f"{pillar['score']}%", f"{pillar['passed']}/{pillar['total']}", st])
+    t = _tbl(["Pillar", "Score", "Checks", "Status"], rows,
+             [UW*0.35, UW*0.15, UW*0.15, UW*0.12])
+    # Color status
+    for i, row in enumerate(rows):
+        st = row[3]
+        bg = {"FAIL": "#FEE2E2", "WARN": "#FEF9C3", "PASS": "#D1FAE5"}.get(st, C["bg"])
+        tc = {"FAIL": C["red"], "WARN": C["yel"], "PASS": C["grn"]}.get(st, C["txt"])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (3, i+1), (3, i+1), H(bg)),
+            ("TEXTCOLOR", (3, i+1), (3, i+1), H(tc)),
+            ("FONTNAME", (3, i+1), (3, i+1), "Helvetica-Bold"),
+        ]))
+    el.append(KeepTogether(sec + [t]))
+    el.append(Spacer(1, 4))
 
-    # Audit Findings
-    elements.append(Paragraph("Security Audit Findings", h1))
-    elements.append(Paragraph(f"Total: {data['audit']['total']}  |  Critical: {data['audit']['summary'].get('CRITICAL',0)}  |  High: {data['audit']['summary'].get('HIGH',0)}  |  Medium: {data['audit']['summary'].get('MEDIUM',0)}", small))
-    elements.append(Spacer(1, 5))
+    # ── WAF Checks (compact) ──
+    sec2 = _sec("WAF Check Details")
+    check_rows = []
+    for pid, pillar in waf.get("pillars", {}).items():
+        for check in pillar.get("checks", []):
+            icon = "✓" if check["passed"] else "✗"
+            check_rows.append([pillar["name"], check["name"], icon,
+                              "" if check["passed"] else check.get("recommendation", "")[:40]])
+    t2 = _tbl(["Pillar", "Check", "", "Action Required"], check_rows,
+              [UW*0.20, UW*0.22, UW*0.05, UW*0.42])
+    for i, row in enumerate(check_rows):
+        clr_val = C["grn"] if row[2] == "✓" else C["red"]
+        t2.setStyle(TableStyle([
+            ("TEXTCOLOR", (2, i+1), (2, i+1), H(clr_val)),
+            ("FONTNAME", (2, i+1), (2, i+1), "Helvetica-Bold"),
+        ]))
+    el.append(KeepTogether(sec2 + [t2]))
+    el.append(Spacer(1, 4))
 
-    audit_rows = [["Severity", "Title", "Region", "Resource"]]
-    for f in data['audit']['findings'][:100]:
-        audit_rows.append([
-            f.get('severity', ''),
-            (f.get('title', '') or f.get('issue', ''))[:60],
-            f.get('region', '') or '',
-            (f.get('resource', '') or '')[:40],
-        ])
-    t = Table(audit_rows, colWidths=[55, 180, 70, 120])
-    style_list = [
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#E2E8F0')),
-        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-    ]
-    sev_colors = {"CRITICAL": '#FEE2E2', "HIGH": '#FFEDD5', "MEDIUM": '#FEF9C3'}
-    for i, row in enumerate(audit_rows[1:], 1):
-        if row[0] in sev_colors:
-            style_list.append(('BACKGROUND', (0, i), (0, i), colors.HexColor(sev_colors[row[0]])))
-    t.setStyle(TableStyle(style_list))
-    elements.append(t)
+    # ── Audit Findings (top 30) ──
+    findings = audit.get("findings", [])
+    summary = audit.get("summary", {})
+    sec3 = _sec("Security Audit",
+                f"{audit.get('total',0)} findings — {summary.get('CRITICAL',0)} Critical · {summary.get('HIGH',0)} High · {summary.get('MEDIUM',0)} Medium")
+    rows = [[f.get("severity",""), (f.get("title","") or f.get("issue",""))[:50],
+             f.get("region","-"), (f.get("resource","-") or "-")[:30]]
+            for f in findings[:30]]
+    t3 = _tbl(["Sev", "Finding", "Region", "Resource"], rows,
+              [UW*0.10, UW*0.38, UW*0.14, UW*0.28], sev_col=0)
+    if len(findings) > 30:
+        el.extend(sec3)
+        el.append(t3)
+        el.append(Paragraph(f'<font color="{C["mut"]}" size="6">Showing top 30 of {len(findings)} findings</font>', ss["Sm"]))
+    else:
+        el.extend(sec3)
+        el.append(t3)
+    el.append(Spacer(1, 4))
 
-    elements.append(PageBreak())
+    # ── AI Recommendations (clean) ──
+    ai = data.get("ai_recommendations", {})
+    if ai:
+        sec4 = _sec("AI Security Intelligence", "Automated analysis and recommendations")
+        el.extend(sec4)
+        for topic, content in ai.items():
+            for line in content.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                # Clean markdown
+                line = line.replace("**", "").replace("##", "").replace("■■", "●").replace("■", "●")
+                if line.startswith("# "):
+                    el.append(Paragraph(f'<b>{line[2:]}</b>', ss["H2"]))
+                elif line.startswith("- ") or line.startswith("• "):
+                    el.append(Paragraph(f'  • {line[2:]}', ss["Bd"]))
+                elif line.startswith("Resource:"):
+                    el.append(Paragraph(f'<font color="{C["mut"]}" size="6">    {line}</font>', ss["Sm"]))
+                else:
+                    el.append(Paragraph(line, ss["Bd"]))
+        el.append(Spacer(1, 4))
 
-    # AI Recommendations
-    elements.append(Paragraph("AI Security Intelligence Report", h1))
-    elements.append(Paragraph(f"CloudSentinel AI analysis based on your infrastructure scan data", small))
-    elements.append(Spacer(1, 8))
-    for topic, content in data.get('ai_recommendations', {}).items():
-        for line in content.split('\n'):
-            if line.startswith('## '):
-                elements.append(Paragraph(line[3:], h2))
-            elif line.startswith('**') and line.endswith('**'):
-                elements.append(Paragraph(f"<b>{line.strip('*')}</b>", body))
-            elif line.startswith('- '):
-                elements.append(Paragraph(f"• {line[2:]}", body))
-            elif line.strip():
-                elements.append(Paragraph(line, body))
+    # ── Footer ──
+    from reportlab.platypus import HRFlowable
+    el.append(Spacer(1, 10))
+    el.append(HRFlowable(width="100%", color=H(C["bdr"]), thickness=0.3))
+    el.append(Paragraph(
+        f'<font color="{C["mut"]}" size="5.5">CloudSentinel Enterprise · Comprehensive Security Report · Confidential · {datetime.now().strftime("%Y-%m-%d %H:%M UTC")}</font>',
+        ss["Sm"]))
 
-    doc.build(elements)
+    doc.build(el, onFirstPage=_footer, onLaterPages=_footer)
     return buf.getvalue()
 
 
 # ── HEALTH ───────────────────────────────────────────────────────
+# ── Application Logs API ─────────────────────────────────────────
+@app.get("/api/logs/{log_type}")
+def get_app_logs(log_type: str, lines: int = 100, user: dict = Depends(get_current_user)):
+    """View application logs (owner only)."""
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    log_files = {
+        "app": "app.log", "access": "access.log", "auth": "auth.log",
+        "scan": "scan.log", "security": "security.log", "export": "export.log",
+    }
+    filename = log_files.get(log_type)
+    if not filename:
+        raise HTTPException(400, f"Unknown log type: {log_type}. Valid: {list(log_files.keys())}")
+    log_path = os.path.join(BASE_DIR, "backend", "logs", filename)
+    if not os.path.exists(log_path):
+        return {"log_type": log_type, "lines": [], "total": 0}
+    with open(log_path, "r") as f:
+        all_lines = f.readlines()
+    recent = all_lines[-lines:] if len(all_lines) > lines else all_lines
+    return {
+        "log_type": log_type,
+        "total": len(all_lines),
+        "lines": [line.strip() for line in reversed(recent)],
+    }
+
+
+@app.get("/api/logs")
+def list_log_types(user: dict = Depends(get_current_user)):
+    """List available log files with sizes."""
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    log_dir = os.path.join(BASE_DIR, "backend", "logs")
+    logs = []
+    if os.path.exists(log_dir):
+        for f in sorted(os.listdir(log_dir)):
+            if f.endswith(".log"):
+                path = os.path.join(log_dir, f)
+                size = os.path.getsize(path)
+                with open(path) as fh:
+                    line_count = sum(1 for _ in fh)
+                logs.append({
+                    "name": f.replace(".log", ""),
+                    "filename": f,
+                    "size_bytes": size,
+                    "size_human": f"{size / 1024:.1f} KB" if size < 1048576 else f"{size / 1048576:.1f} MB",
+                    "lines": line_count,
+                })
+    return {"logs": logs}
+
+
 @app.get("/api/health")
 def health():
     accounts_with_data = _get_account_dirs()

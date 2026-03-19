@@ -47,6 +47,7 @@ export const removeAccount = (id, provider = 'aws') => request(`/accounts/${id}?
 export const getCIDRs = () => request('/cidrs');
 export const addCIDR = (data) => request('/cidrs', { method: 'POST', body: JSON.stringify(data) });
 export const removeCIDR = (cidr) => request(`/cidrs/${encodeURIComponent(cidr)}`, { method: 'DELETE' });
+export const getVpcCidrs = (account) => request(`/vpc-cidrs/${account}`);
 
 // Dashboard (multi-cloud)
 export const getDashboard = (account, provider) =>
@@ -180,3 +181,18 @@ export const getAdminPlans = () => request('/admin/plans');
 export const getClientProfile = () => request('/client/profile');
 export const getClientInvoices = () => request('/client/invoices');
 export const getClientActivity = () => request('/client/activity');
+
+// ── Generic API helper (axios-like interface) ────────────────────
+export const api = {
+  get: (path) => request(path.replace('/api', '')).then(data => ({ data })),
+  post: (path, body) => request(path.replace('/api', ''), {
+    method: 'POST', body: JSON.stringify(body),
+  }).then(data => ({ data })),
+  put: (path, body) => request(path.replace('/api', ''), {
+    method: 'PUT', body: JSON.stringify(body),
+  }).then(data => ({ data })),
+  patch: (path, body) => request(path.replace('/api', ''), {
+    method: 'PATCH', body: JSON.stringify(body),
+  }).then(data => ({ data })),
+  delete: (path) => request(path.replace('/api', ''), { method: 'DELETE' }).then(data => ({ data })),
+};

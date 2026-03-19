@@ -1,0 +1,278 @@
+"""
+CloudSentinel Enterprise — Database Models (SQLAlchemy + SQLite)
+Covers: Users, Organizations, CloudAccounts, Scans, Findings, AuditLog, Alerts, Schedules
+"""
+
+import os
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy import (
+    create_engine, Column, String, Integer, Float, Boolean, DateTime,
+    Text, JSON, ForeignKey, Enum as SQLEnum, Index
+)
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+from sqlalchemy.pool import StaticPool
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(BASE_DIR, "cloudsentinel.db")
+DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+    echo=False,
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def gen_id():
+    return uuid.uuid4().hex[:12]
+
+
+def utcnow():
+    return datetime.now(timezone.utc)
+
+
+# ─── Organizations ───
+class Organization(Base):
+    __tablename__ = "organizations"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    name = Column(String(200), nullable=False)
+    slug = Column(String(100), unique=True, index=True)
+    plan = Column(String(50), default="free")  # free, pro, enterprise
+    status = Column(String(20), default="active")  # active, suspended, trial
+    max_accounts = Column(Integer, default=1)
+    max_scans_month = Column(Integer, default=10)
+    max_users = Column(Integer, default=3)
+    branding_logo = Column(Text, nullable=True)
+    branding_color = Column(String(20), default="#7c3aed")
+    webhook_url = Column(Text, nullable=True)
+    webhook_events = Column(JSON, default=list)
+    slack_webhook = Column(Text, nullable=True)
+    email_alerts = Column(Boolean, default=True)
+    alert_email = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    users = relationship("User", back_populates="organization", cascade="all, delete-orphan")
+    cloud_accounts = relationship("CloudAccount", back_populates="organization", cascade="all, delete-orphan")
+    scans = relationship("Scan", back_populates="organization", cascade="all, delete-orphan")
+    findings = relationship("Finding", back_populates="organization", cascade="all, delete-orphan")
+    audit_logs = relationship("AuditLog", back_populates="organization", cascade="all, delete-orphan")
+
+
+# ─── Users ───
+class User(Base):
+    __tablename__ = "users"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(200), nullable=True)
+    password_hash = Column(String(200), nullable=False)
+    role = Column(String(30), default="viewer")  # owner, admin, client_admin, editor, viewer, auditor
+    user_type = Column(String(20), default="client")  # owner, client
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    last_login = Column(DateTime, nullable=True)
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String(100), nullable=True)
+    api_key = Column(String(64), nullable=True, unique=True, index=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    organization = relationship("Organization", back_populates="users")
+
+
+# ─── Cloud Accounts ───
+class CloudAccount(Base):
+    __tablename__ = "cloud_accounts"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    provider = Column(String(20), nullable=False)  # aws, azure, gcp
+    account_id = Column(String(100), nullable=True)  # AWS Account ID, Azure Sub ID
+    access_key = Column(String(200), nullable=True)
+    secret_key = Column(String(200), nullable=True)
+    role_arn = Column(String(300), nullable=True)
+    region = Column(String(50), default="us-east-1")
+    status = Column(String(20), default="active")  # active, inactive, error
+    last_scan_at = Column(DateTime, nullable=True)
+    last_scan_status = Column(String(20), nullable=True)
+    total_resources = Column(Integer, default=0)
+    security_score = Column(Integer, default=0)
+    created_at = Column(DateTime, default=utcnow)
+
+    organization = relationship("Organization", back_populates="cloud_accounts")
+    scans = relationship("Scan", back_populates="cloud_account", cascade="all, delete-orphan")
+
+    __table_args__ = (Index("idx_cloud_accounts_org", "org_id"),)
+
+
+# ─── Scans ───
+class Scan(Base):
+    __tablename__ = "scans"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False, index=True)
+    account_id = Column(String(12), ForeignKey("cloud_accounts.id"), nullable=False, index=True)
+    scan_type = Column(String(30), default="full")  # full, quick, compliance, threat
+    status = Column(String(20), default="pending")  # pending, running, completed, failed
+    triggered_by = Column(String(100), nullable=True)  # user_id or "scheduler"
+    regions_scanned = Column(Integer, default=0)
+    resources_found = Column(Integer, default=0)
+    findings_count = Column(Integer, default=0)
+    critical_count = Column(Integer, default=0)
+    high_count = Column(Integer, default=0)
+    medium_count = Column(Integer, default=0)
+    low_count = Column(Integer, default=0)
+    security_score = Column(Integer, default=0)
+    compliance_score = Column(Integer, default=0)
+    duration_seconds = Column(Integer, default=0)
+    results = Column(JSON, default=dict)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    organization = relationship("Organization", back_populates="scans")
+    cloud_account = relationship("CloudAccount", back_populates="scans")
+    findings = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")
+
+    __table_args__ = (Index("idx_scans_org_account", "org_id", "account_id"),)
+
+
+# ─── Findings ───
+class Finding(Base):
+    __tablename__ = "findings"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False, index=True)
+    scan_id = Column(String(12), ForeignKey("scans.id"), nullable=False, index=True)
+    account_name = Column(String(200), nullable=True)
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    severity = Column(String(20), nullable=False)  # CRITICAL, HIGH, MEDIUM, LOW, INFO
+    category = Column(String(100), nullable=True)  # iam, network, storage, compute, encryption
+    resource_type = Column(String(100), nullable=True)
+    resource_id = Column(String(300), nullable=True)
+    region = Column(String(50), nullable=True)
+    compliance_framework = Column(String(100), nullable=True)
+    compliance_control = Column(String(100), nullable=True)
+    remediation = Column(Text, nullable=True)
+    remediation_cli = Column(Text, nullable=True)
+    status = Column(String(20), default="open")  # open, resolved, suppressed, accepted
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by = Column(String(100), nullable=True)
+    mitre_tactic = Column(String(100), nullable=True)
+    mitre_technique = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    organization = relationship("Organization", back_populates="findings")
+    scan = relationship("Scan", back_populates="findings")
+
+    __table_args__ = (
+        Index("idx_findings_severity", "severity"),
+        Index("idx_findings_org_status", "org_id", "status"),
+    )
+
+
+# ─── Audit Log ───
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=True, index=True)
+    user_id = Column(String(12), nullable=True)
+    username = Column(String(100), nullable=True)
+    action = Column(String(100), nullable=False)  # login, scan.start, scan.complete, export, account.add, etc.
+    resource_type = Column(String(50), nullable=True)  # scan, account, user, finding, report
+    resource_id = Column(String(100), nullable=True)
+    details = Column(JSON, default=dict)
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    organization = relationship("Organization", back_populates="audit_logs")
+
+    __table_args__ = (Index("idx_audit_org_action", "org_id", "action"),)
+
+
+# ─── Scheduled Scans ───
+class ScanSchedule(Base):
+    __tablename__ = "scan_schedules"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
+    account_id = Column(String(12), ForeignKey("cloud_accounts.id"), nullable=False)
+    schedule_type = Column(String(20), default="daily")  # hourly, daily, weekly, monthly
+    cron_expression = Column(String(50), nullable=True)  # e.g., "0 2 * * *"
+    scan_type = Column(String(30), default="full")
+    is_active = Column(Boolean, default=True)
+    last_run_at = Column(DateTime, nullable=True)
+    next_run_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
+# ─── Alert Rules ───
+class AlertRule(Base):
+    __tablename__ = "alert_rules"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    condition_type = Column(String(50), nullable=False)  # severity_threshold, score_drop, new_finding, compliance_drift
+    condition_value = Column(JSON, default=dict)  # e.g., {"severity": "CRITICAL", "min_count": 1}
+    channels = Column(JSON, default=list)  # ["email", "slack", "webhook"]
+    is_active = Column(Boolean, default=True)
+    last_triggered_at = Column(DateTime, nullable=True)
+    trigger_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=utcnow)
+
+
+# ─── Alert History ───
+class AlertHistory(Base):
+    __tablename__ = "alert_history"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
+    rule_id = Column(String(12), ForeignKey("alert_rules.id"), nullable=True)
+    channel = Column(String(30), nullable=False)  # email, slack, webhook
+    title = Column(String(500), nullable=False)
+    message = Column(Text, nullable=True)
+    status = Column(String(20), default="sent")  # sent, failed, acknowledged
+    sent_at = Column(DateTime, default=utcnow)
+
+
+# ─── Remediation Tasks ───
+class RemediationTask(Base):
+    __tablename__ = "remediation_tasks"
+    id = Column(String(12), primary_key=True, default=gen_id)
+    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
+    finding_id = Column(String(12), ForeignKey("findings.id"), nullable=False)
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    action_type = Column(String(50), nullable=False)  # auto, manual, cli_command
+    action_payload = Column(JSON, default=dict)  # CLI command or API call details
+    status = Column(String(20), default="pending")  # pending, in_progress, completed, failed
+    assigned_to = Column(String(100), nullable=True)
+    executed_by = Column(String(100), nullable=True)
+    executed_at = Column(DateTime, nullable=True)
+    result = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=utcnow)
+
+
+# ─── Create all tables ───
+def init_db():
+    """Create all tables if they don't exist."""
+    Base.metadata.create_all(bind=engine)
+    print(f"[DB] Database initialized at {DB_PATH}")
+    return True
+
+
+def drop_db():
+    """Drop all tables."""
+    Base.metadata.drop_all(bind=engine)
+    print("[DB] All tables dropped")

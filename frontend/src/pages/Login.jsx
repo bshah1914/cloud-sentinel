@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Cloud, Lock, User, Eye, EyeOff, AlertCircle, ArrowRight, Shield, Zap } from 'lucide-react';
 import { useAuth } from '../auth';
+import Logo from '../components/Logo';
 
 // Particle background
 function ParticleField() {
@@ -119,21 +120,17 @@ export default function Login() {
       >
         {/* Logo + Title */}
         <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 200, delay: 0.15, damping: 12 }}
-            className="w-20 h-20 rounded-2xl gradient-border flex items-center justify-center mx-auto mb-5 shadow-lg shadow-primary/20"
-          >
-            <Cloud className="w-10 h-10 text-white" />
-          </motion.div>
+          <div className="flex justify-center mb-5">
+            <Logo size="xl" showText={false} animate={true} />
+          </div>
           <motion.h1
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="text-4xl font-bold gradient-text"
+            className="text-4xl font-black"
           >
-            CloudSentinel
+            <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">Cloud</span>
+            <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Sentinel</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}

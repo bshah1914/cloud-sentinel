@@ -2,11 +2,12 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useAuth } from '../auth';
+import Logo from './Logo';
 import {
   LayoutDashboard, Users, ShieldCheck, Server, KeyRound,
   ShieldAlert, ScanLine, Cloud, ChevronLeft, ChevronRight,
   UserCog, Layers, Sparkles, FileText, ClipboardCheck, BookOpen, Crosshair, Crown, Headphones,
-  Settings, Building2
+  Settings, Building2, Eye, ScrollText, Bell
 } from 'lucide-react';
 
 const ownerNav = [
@@ -22,6 +23,9 @@ const ownerNav = [
   { to: '/compliance', icon: ClipboardCheck, label: 'Compliance', section: 'compliance' },
   { to: '/report', icon: FileText, label: 'Report', section: 'report' },
   { to: '/docs', icon: BookOpen, label: 'Docs', section: 'report' },
+  { to: '/executive', icon: Eye, label: 'Executive', section: 'report' },
+  { to: '/audit-log', icon: ScrollText, label: 'Audit Log', section: 'compliance' },
+  { to: '/alert-rules', icon: Bell, label: 'Alerts', section: 'compliance' },
   { to: '/admin', icon: Building2, label: 'Admin Panel', section: 'platform' },
   { to: '/support', icon: Headphones, label: 'Support', section: 'platform' },
   { to: '/pricing', icon: Crown, label: 'Plans', section: 'platform' },
@@ -74,14 +78,8 @@ export default function Sidebar({ collapsed, onToggle, activeProvider }) {
     >
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-border/50">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <motion.div
-            whileHover={{ rotate: 360 }}
-            transition={{ duration: 0.6 }}
-            className="w-10 h-10 rounded-xl gradient-border flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/15"
-          >
-            <Cloud className="w-5 h-5 text-white" />
-          </motion.div>
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <Logo size="sm" showText={false} animate={!collapsed} collapsed={collapsed} />
           <AnimatePresence>
             {!collapsed && (
               <motion.div
@@ -90,9 +88,12 @@ export default function Sidebar({ collapsed, onToggle, activeProvider }) {
                 exit={{ opacity: 0, x: -10 }}
                 className="whitespace-nowrap"
               >
-                <h1 className="text-sm font-bold gradient-text">CloudSentinel</h1>
-                <p className="text-[10px] text-text-muted tracking-wider uppercase">
-                  {isClient ? user?.org_name || 'Client Portal' : 'Enterprise Security'}
+                <h1 className="text-sm font-bold">
+                  <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">Cloud</span>
+                  <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Sentinel</span>
+                </h1>
+                <p className="text-[9px] text-text-muted/50 tracking-[2px] uppercase">
+                  {isClient ? user?.org_name || 'Client Portal' : 'Secure Your Cloud'}
                 </p>
               </motion.div>
             )}

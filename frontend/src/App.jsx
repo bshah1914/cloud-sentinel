@@ -21,6 +21,9 @@ import Support from './pages/Support';
 import AdminPanel from './pages/AdminPanel';
 import ClientDashboard from './pages/ClientDashboard';
 import MyAccount from './pages/MyAccount';
+import Executive from './pages/Executive';
+import AuditLog from './pages/AuditLog';
+import AlertRules from './pages/AlertRules';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -60,6 +63,9 @@ function ProtectedRoutes() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/support" element={<Support />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/executive" element={<Executive />} />
+            <Route path="/audit-log" element={<AuditLog />} />
+            <Route path="/alert-rules" element={<AlertRules />} />
           </>
         )}
 
