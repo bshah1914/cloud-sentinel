@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Server, Database, Shield, Layers, CloudLightning,
-  HardDrive, Globe, MapPin, Search, Grid3X3, List
+  HardDrive, Globe, MapPin, Search
 } from 'lucide-react';
 import { getResources } from '../api';
 import Card from '../components/Card';
@@ -169,7 +169,7 @@ export default function Resources() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: Math.min(i * 0.015, 0.4) }}
-                  className="border-b border-border/20 hover:bg-white/[0.015] transition-all"
+                  className="border-b border-border/20 hover:bg-surface/40 transition-all"
                 >
                   <td className="py-3 pr-4">
                     <span className="flex items-center gap-1.5 text-[10px] text-text-muted bg-surface-lighter/30 px-2 py-1 rounded-md w-fit">
@@ -182,7 +182,7 @@ export default function Resources() {
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${
                           item[col] === 'running' ? 'bg-emerald-500/10 text-emerald-400' :
                           item[col] === 'stopped' ? 'bg-red-500/10 text-red-400' :
-                          'bg-slate-500/10 text-slate-400'
+                          'bg-slate-500/10 text-text-muted'
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
                             item[col] === 'running' ? 'bg-emerald-400 dot-pulse' :

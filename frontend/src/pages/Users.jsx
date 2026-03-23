@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UserCog, Plus, Trash2, Shield, Eye, EyeOff } from 'lucide-react';
+import { UserCog, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { getUsers, createUser, deleteUser } from '../api';
 import Card from '../components/Card';
 import Loader from '../components/Loader';

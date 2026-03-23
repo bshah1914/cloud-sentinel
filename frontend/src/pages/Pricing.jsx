@@ -47,7 +47,7 @@ const PLANS = [
     color: '#7c3aed',
     popular: true,
     cta: 'Upgrade to Pro',
-    ctaStyle: 'bg-gradient-to-r from-primary to-primary-dark hover:shadow-lg hover:shadow-primary/20 text-white font-semibold',
+    ctaStyle: 'bg-gradient-to-r from-primary to-primary-dark hover:shadow-lg hover:shadow-primary/20 text-text font-semibold',
     features: [
       { text: '10 cloud accounts', included: true },
       { text: 'Unlimited scans', included: true },
@@ -76,7 +76,7 @@ const PLANS = [
     color: '#f59e0b',
     popular: false,
     cta: 'Contact Sales',
-    ctaStyle: 'bg-gradient-to-r from-amber-500 to-amber-600 hover:shadow-lg hover:shadow-amber-500/20 text-white font-semibold',
+    ctaStyle: 'bg-gradient-to-r from-amber-500 to-amber-600 hover:shadow-lg hover:shadow-amber-500/20 text-text font-semibold',
     features: [
       { text: 'Unlimited cloud accounts', included: true },
       { text: 'Unlimited scans', included: true },
@@ -131,7 +131,7 @@ export default function Pricing() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
           <div className="w-10 h-10 rounded-xl gradient-border flex items-center justify-center shadow-lg shadow-primary/15">
-            <Crown className="w-5 h-5 text-white" />
+            <Crown className="w-5 h-5 text-text" />
           </div>
         </div>
         <h1 className="text-3xl font-black text-text">Choose Your Plan</h1>
@@ -172,7 +172,7 @@ export default function Pricing() {
               {/* Popular Badge */}
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="px-4 py-1 rounded-full bg-gradient-to-r from-primary to-primary-dark text-white text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-primary/20 flex items-center gap-1.5">
+                  <span className="px-4 py-1 rounded-full bg-gradient-to-r from-primary to-primary-dark text-text text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-primary/20 flex items-center gap-1.5">
                     <Star className="w-3 h-3" /> Most Popular
                   </span>
                 </div>

@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, CheckCircle2, XCircle, MapPin, HardDrive,
-  Network, X, Cloud, Globe, Shield, Layers
+  Network, X, Cloud, Globe, Layers
 } from 'lucide-react';
 import { getAccounts, addAccount, removeAccount, getCIDRs, addCIDR, removeCIDR, getVpcCidrs } from '../api';
 import Card from '../components/Card';
@@ -148,7 +148,7 @@ export default function Accounts() {
 
       {/* Account Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {accounts.map((acct, i) => (
+        {(accounts || []).map((acct, i) => (
           <Card key={acct.id} delay={i * 0.04}>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -183,7 +183,7 @@ export default function Accounts() {
             </div>
             {acct.regions?.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {acct.regions.map((r) => (
+                {(acct.regions || []).map((r) => (
                   <span key={r} className="flex items-center gap-1 text-[10px] bg-surface/40 border border-border/20 rounded-md px-2 py-0.5 text-text-muted">
                     <MapPin className="w-2.5 h-2.5" />{r}
                   </span>
@@ -233,7 +233,7 @@ export default function Accounts() {
       {cidrs.length > 0 && (
         <Card hover={false}>
           <div className="space-y-1.5">
-            {cidrs.map((c, i) => (
+            {(cidrs || []).map((c, i) => (
               <motion.div key={c.cidr} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.025 }}
                 className="flex items-center justify-between bg-surface/40 rounded-xl px-4 py-3 border border-border/20 hover:border-border/40 transition-all">
@@ -270,7 +270,7 @@ export default function Accounts() {
                   </tr>
                 </thead>
                 <tbody>
-                  {vpcCidrs.map((vpc, i) => (
+                  {(vpcCidrs || []).map((vpc, i) => (
                     <motion.tr key={`${vpc.vpc_id}-${i}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.02 }}
                       className="border-b border-border/15 hover:bg-surface/20 transition-all">

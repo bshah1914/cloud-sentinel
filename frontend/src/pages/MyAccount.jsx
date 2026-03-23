@@ -13,7 +13,7 @@ export default function MyAccount() {
         const [p, i] = await Promise.all([getClientProfile(), getClientInvoices()]);
         setProfile(p);
         setInvoices(i.invoices || []);
-      } catch (e) { console.error(e); }
+      } catch (e) { }
       setLoading(false);
     }
     load();
@@ -28,19 +28,19 @@ export default function MyAccount() {
   return (
     <div className="p-6 space-y-6 max-w-[1200px] mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-white">My Account</h1>
+        <h1 className="text-2xl font-bold text-text">My Account</h1>
         <p className="text-sm text-gray-400 mt-1">{org.name} - Account settings and billing</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-[#1e1b4b]/50 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-surface-light/50 p-1 rounded-lg w-fit">
         {[
           { id: 'plan', label: 'My Plan' },
           { id: 'team', label: 'Team' },
           { id: 'billing', label: 'Billing' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${tab === t.id ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${tab === t.id ? 'bg-violet-600 text-text' : 'text-gray-400 hover:text-text'}`}>
             {t.label}
           </button>
         ))}
@@ -49,10 +49,10 @@ export default function MyAccount() {
       {/* Plan Tab */}
       {tab === 'plan' && (
         <div className="space-y-4">
-          <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-6">
+          <div className="bg-surface-light/60 border border-white/5 rounded-xl p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-bold text-white">Current Plan: <span className="text-violet-400">{plan.name}</span></h3>
+                <h3 className="text-lg font-bold text-text">Current Plan: <span className="text-violet-400">{plan.name}</span></h3>
                 <p className="text-sm text-gray-400 mt-1">{plan.price === 0 ? 'Free forever' : `$${plan.price}/month`}</p>
               </div>
               <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${org.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
@@ -71,15 +71,15 @@ export default function MyAccount() {
               ].map((s, i) => (
                 <div key={i} className="bg-[#0f0a2a]/50 rounded-lg p-4">
                   <p className="text-xs text-gray-400 mb-1">{s.l}</p>
-                  <p className="text-lg font-bold text-white">{s.v}</p>
+                  <p className="text-lg font-bold text-text">{s.v}</p>
                   {s.used !== undefined && <p className="text-xs text-gray-500 mt-1">{s.used} used</p>}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-6">
-            <h3 className="text-sm font-semibold text-white mb-3">Included Features</h3>
+          <div className="bg-surface-light/60 border border-white/5 rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-text mb-3">Included Features</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {(plan.features || []).map(f => (
                 <div key={f} className="flex items-center gap-2 py-1.5">
@@ -95,9 +95,9 @@ export default function MyAccount() {
 
       {/* Team Tab */}
       {tab === 'team' && (
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-sm font-semibold text-text">
               Team Members ({(profile.users || []).length}/{plan.max_users === -1 ? '∞' : plan.max_users})
             </h3>
           </div>
@@ -109,7 +109,7 @@ export default function MyAccount() {
                     <span className="text-sm font-bold text-violet-300">{u.username[0].toUpperCase()}</span>
                   </div>
                   <div>
-                    <p className="text-sm text-white font-medium">{u.username}</p>
+                    <p className="text-sm text-text font-medium">{u.username}</p>
                     <p className="text-xs text-gray-500">{u.email}</p>
                   </div>
                 </div>
@@ -131,25 +131,25 @@ export default function MyAccount() {
       {tab === 'billing' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+            <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
               <p className="text-xs text-gray-400 mb-1">Monthly Cost</p>
               <p className="text-2xl font-bold text-emerald-400">{plan.price === 0 ? 'Free' : `$${plan.price}`}</p>
               <p className="text-xs text-gray-500 mt-1">per month</p>
             </div>
-            <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+            <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
               <p className="text-xs text-gray-400 mb-1">Annual Cost</p>
               <p className="text-2xl font-bold text-violet-400">{plan.price === 0 ? 'Free' : `$${plan.price * 12}`}</p>
               <p className="text-xs text-gray-500 mt-1">per year</p>
             </div>
-            <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+            <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
               <p className="text-xs text-gray-400 mb-1">Payment Method</p>
               <p className="text-lg font-bold text-gray-300">{org.billing?.payment_method || 'Not set'}</p>
               <p className="text-xs text-gray-500 mt-1">Contact admin to update</p>
             </div>
           </div>
 
-          <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Invoices</h3>
+          <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-text mb-4">Invoices</h3>
             {invoices.length > 0 ? (
               <table className="w-full">
                 <thead>
@@ -162,7 +162,7 @@ export default function MyAccount() {
                 <tbody>
                   {invoices.map(inv => (
                     <tr key={inv.id} className="border-b border-white/5">
-                      <td className="px-3 py-3 text-sm text-white font-mono">{inv.id}</td>
+                      <td className="px-3 py-3 text-sm text-text font-mono">{inv.id}</td>
                       <td className="px-3 py-3 text-sm text-emerald-400 font-medium">${inv.amount}</td>
                       <td className="px-3 py-3 text-sm text-gray-300">{inv.description}</td>
                       <td className="px-3 py-3">

@@ -148,7 +148,7 @@ export default function AlertRules() {
               <p className="text-sm">No alert rules configured</p>
               <p className="text-xs mt-1">Create a rule to get notified about security events</p>
             </div>
-          ) : rules.map((rule, i) => (
+          ) : (rules || []).map((rule, i) => (
             <motion.div key={rule.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03 }}
               className="bg-surface-light/80 backdrop-blur-xl border border-border/30 rounded-xl p-4 hover:border-border/60 transition-all flex items-center gap-4">
@@ -182,7 +182,7 @@ export default function AlertRules() {
               <Clock className="w-10 h-10 mx-auto mb-3 opacity-20" />
               <p className="text-sm">No alerts sent yet</p>
             </div>
-          ) : history.map((alert, i) => (
+          ) : (history || []).map((alert, i) => (
             <motion.div key={alert.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
               className="bg-surface-light/80 border border-border/30 rounded-xl p-4 flex items-center gap-4">
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${

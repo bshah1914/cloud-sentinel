@@ -1,4 +1,10 @@
-const BASE = '/api';
+export function getBase() {
+  const path = window.location.pathname;
+  const match = path.match(/^(\/[^/]+)\//);
+  if (match && match[1] !== '/api') return match[1] + '/api';
+  return '/api';
+}
+const BASE = getBase();
 
 function getToken() {
   return localStorage.getItem('cm_token');

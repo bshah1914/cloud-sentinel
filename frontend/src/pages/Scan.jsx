@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  ScanLine, Play, Clock, CheckCircle2, XCircle,
+  ScanLine, Clock, CheckCircle2, XCircle,
   Loader as LoaderIcon, RefreshCw, Terminal, Plus, Key, Eye, EyeOff, Zap
 } from 'lucide-react';
 import { startScan, getScanStatus, getScanHistory, getProviders } from '../api';

@@ -18,7 +18,7 @@ function generateNotifications(account) {
     { id: 3, type: 'warning', icon: AlertTriangle, title: '19 IAM users without MFA', desc: 'All console users should have MFA enabled for security.', time: fmt(60), read: false },
     { id: 4, type: 'info', icon: CheckCircle2, title: 'Compliance scan completed', desc: '183 checks evaluated across 10 frameworks. Score: 42%', time: fmt(90), read: true },
     { id: 5, type: 'info', icon: Info, title: 'New framework added: GDPR', desc: 'GDPR compliance checks are now available for scanning.', time: fmt(180), read: true },
-    { id: 6, type: 'success', icon: CheckCircle2, title: 'Cloud scan completed', desc: `Account ${account || 'CNS'} scan finished. 670 resources found.`, time: fmt(360), read: true },
+    { id: 6, type: 'success', icon: CheckCircle2, title: 'Cloud scan completed', desc: `Account ${account || 'Unknown'} scan finished. Resources scan completed.`, time: fmt(360), read: true },
   ];
 }
 
@@ -51,10 +51,10 @@ export default function NotificationCenter({ account }) {
     <div className="relative">
       {/* Bell Button */}
       <button onClick={() => setOpen(!open)}
-        className="relative p-2 rounded-lg text-text-muted hover:text-text hover:bg-white/[0.04] transition-all">
+        className="relative p-2 rounded-lg text-text-muted hover:text-text hover:bg-surface/40 transition-all">
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold border-2 border-surface-light shadow-lg shadow-rose-500/30">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-rose-500 text-text text-[9px] font-bold border-2 border-surface-light shadow-lg shadow-rose-500/30">
             {unreadCount}
           </span>
         )}
@@ -88,7 +88,7 @@ export default function NotificationCenter({ account }) {
                       Mark all read
                     </button>
                   )}
-                  <button onClick={() => setOpen(false)} className="p-1 rounded-lg text-text-muted hover:text-text hover:bg-white/[0.04] transition-all">
+                  <button onClick={() => setOpen(false)} className="p-1 rounded-lg text-text-muted hover:text-text hover:bg-surface/40 transition-all">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -107,7 +107,7 @@ export default function NotificationCenter({ account }) {
                     const Icon = notif.icon;
                     return (
                       <motion.div key={notif.id} layout
-                        className={`flex items-start gap-3 px-4 py-3 border-b border-border/20 hover:bg-white/[0.02] transition-all ${!notif.read ? 'bg-primary/[0.03]' : ''}`}>
+                        className={`flex items-start gap-3 px-4 py-3 border-b border-border/20 hover:bg-surface/40 transition-all ${!notif.read ? 'bg-primary/[0.03]' : ''}`}>
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${style.bg} border ${style.border}`}>
                           <Icon className="w-4 h-4" style={{ color: notif.type === 'critical' ? '#fb7185' : notif.type === 'warning' ? '#fbbf24' : notif.type === 'success' ? '#4ade80' : '#60a5fa' }} />
                         </div>

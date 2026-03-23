@@ -5,13 +5,13 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  AreaChart, Area, Treemap
+  Treemap
 } from 'recharts';
 import {
-  ShieldAlert, AlertTriangle, Search, RefreshCw, Globe, Lock,
+  ShieldAlert, AlertTriangle, Search, Globe, Lock,
   Server, Database, Shield, ChevronRight, ChevronDown, Clock, Crosshair,
-  Activity, Eye, MapPin, Zap, Target, Copy, CheckCircle2, XCircle,
-  Skull, Network, ArrowRight, Flame, Bug, KeyRound, FileWarning,
+  Activity, Eye, MapPin, Zap, Target, Copy, CheckCircle2,
+  Skull, Network, ArrowRight, Flame, Bug, KeyRound,
   TrendingDown, Radio
 } from 'lucide-react';
 import { getThreats } from '../api';

@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { getBase } from './api';
+
 
 const AuthContext = createContext(null);
 
@@ -12,8 +14,8 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return;
     }
-    // Validate token by calling /api/auth/me
-    fetch('/api/auth/me', {
+    const base = getBase();
+    fetch(`${base}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -24,7 +26,6 @@ export function AuthProvider({ children }) {
         setUser(data);
       })
       .catch(() => {
-        // Token is invalid/expired
         localStorage.removeItem('cm_token');
         setToken(null);
         setUser(null);
@@ -33,7 +34,8 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const login = async (username, password) => {
-    const res = await fetch('/api/auth/login', {
+    const base = getBase();
+    const res = await fetch(`${base}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
@@ -46,6 +48,9 @@ export function AuthProvider({ children }) {
     localStorage.setItem('cm_token', data.access_token);
     setToken(data.access_token);
     setUser(data.user);
+    // Redirect to app root after login
+    const basePath = window.location.pathname.match(/^(\/[^/]+)\//)?.[1] || '';
+    window.location.href = basePath + '/';
     return data;
   };
 

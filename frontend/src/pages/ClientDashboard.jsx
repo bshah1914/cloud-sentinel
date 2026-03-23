@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getClientProfile, getMultiCloudOverview, getResources, getThreats, getComplianceResults, getSecurityGroups, getIAM } from '../api';
+import { getClientProfile, getMultiCloudOverview, getThreats, getComplianceResults, getSecurityGroups, getIAM } from '../api';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 
 const COLORS = ['#7c3aed', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6'];
@@ -26,7 +26,7 @@ export default function ClientDashboard() {
           try { setSecGroups(await getSecurityGroups(accountName)); } catch(e) {}
           try { setIam(await getIAM(accountName)); } catch(e) {}
         }
-      } catch (e) { console.error(e); }
+      } catch (e) { }
       setLoading(false);
     }
     load();
@@ -80,7 +80,7 @@ export default function ClientDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">My Dashboard</h1>
+          <h1 className="text-2xl font-bold text-text">My Dashboard</h1>
           <p className="text-sm text-gray-400 mt-1">{org.name} — Unified security overview</p>
         </div>
         <div className="flex items-center gap-3">
@@ -99,7 +99,7 @@ export default function ClientDashboard() {
           { l: 'Compliance', v: avgCompliance ? `${avgCompliance}%` : 'N/A', c: '#7c3aed' },
           { l: 'Risky SGs', v: riskyGroups.length, c: '#ec4899' },
         ].map((s, i) => (
-          <div key={i} className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-4">
+          <div key={i} className="bg-surface-light/60 border border-white/5 rounded-xl p-4">
             <p className="text-[10px] text-gray-400 uppercase tracking-wider">{s.l}</p>
             <p className="text-2xl font-bold mt-1" style={{ color: s.c }}>{s.v}</p>
           </div>
@@ -109,7 +109,7 @@ export default function ClientDashboard() {
       {/* Row 2: Score Ring + Threat Pie + Compliance Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Security Score Ring */}
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5 flex flex-col items-center justify-center">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5 flex flex-col items-center justify-center">
           <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">Security Score</p>
           <div className="relative w-28 h-28">
             <svg className="w-28 h-28 -rotate-90" viewBox="0 0 120 120">
@@ -118,7 +118,7 @@ export default function ClientDashboard() {
                 strokeDasharray={`${score * 3.27} 327`} strokeLinecap="round" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-white">{score}</span>
+              <span className="text-2xl font-bold text-text">{score}</span>
               <span className="text-[10px] text-gray-400">/ 100</span>
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function ClientDashboard() {
         </div>
 
         {/* Threat Severity Pie */}
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
           <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">Threats by Severity</p>
           {threatBySeverity.length > 0 ? (
             <div className="flex items-center gap-4">
@@ -143,7 +143,7 @@ export default function ClientDashboard() {
                 {threatBySeverity.map((t, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />
-                    <span className="text-xs text-gray-300">{t.name}: <span className="text-white font-bold">{t.value}</span></span>
+                    <span className="text-xs text-gray-300">{t.name}: <span className="text-text font-bold">{t.value}</span></span>
                   </div>
                 ))}
               </div>
@@ -152,7 +152,7 @@ export default function ClientDashboard() {
         </div>
 
         {/* Compliance Scores */}
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
           <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">Compliance Scores</p>
           {compData.length > 0 ? (
             <ResponsiveContainer width="100%" height={130}>
@@ -172,7 +172,7 @@ export default function ClientDashboard() {
       {/* Row 3: Threat Categories + IAM Summary + Risky Security Groups */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Threat Categories */}
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
           <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">Threat Categories</p>
           <div className="space-y-2">
             {threatCategoryData.slice(0, 6).map((t, i) => (
@@ -182,7 +182,7 @@ export default function ClientDashboard() {
                   <div className="w-20 h-1.5 bg-[#0f0a2a] rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${Math.min(t.value / Math.max(...threatCategoryData.map(c => c.value)) * 100, 100)}%`, background: COLORS[i % COLORS.length] }} />
                   </div>
-                  <span className="text-xs text-white font-bold w-4 text-right">{t.value}</span>
+                  <span className="text-xs text-text font-bold w-4 text-right">{t.value}</span>
                 </div>
               </div>
             ))}
@@ -191,7 +191,7 @@ export default function ClientDashboard() {
         </div>
 
         {/* IAM Summary */}
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
           <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">IAM Overview</p>
           <div className="space-y-3">
             {[
@@ -209,13 +209,13 @@ export default function ClientDashboard() {
         </div>
 
         {/* Risky Security Groups */}
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
           <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">Risky Security Groups</p>
           <div className="space-y-2 max-h-[160px] overflow-y-auto">
-            {riskyGroups.slice(0, 5).map((sg, i) => (
+            {(riskyGroups || []).slice(0, 5).map((sg, i) => (
               <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-[#0f0a2a]/50">
                 <div>
-                  <p className="text-xs text-white font-medium">{sg.group_name}</p>
+                  <p className="text-xs text-text font-medium">{sg.group_name}</p>
                   <p className="text-[10px] text-gray-500">{sg.region}</p>
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${sg.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
@@ -231,7 +231,7 @@ export default function ClientDashboard() {
 
       {/* Row 4: Top Threats List */}
       {threatList.length > 0 && (
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
           <p className="text-xs text-gray-400 mb-3 font-semibold uppercase tracking-wider">Top Threats</p>
           <div className="space-y-2 max-h-[200px] overflow-y-auto">
             {threatList.filter(t => t.severity === 'CRITICAL' || t.severity === 'HIGH').slice(0, 8).map((t, i) => (
@@ -239,7 +239,7 @@ export default function ClientDashboard() {
                 <div className="flex items-center gap-3">
                   <span className={`w-2 h-2 rounded-full ${t.severity === 'CRITICAL' ? 'bg-red-500' : 'bg-yellow-500'}`} />
                   <div>
-                    <p className="text-sm text-white">{t.title}</p>
+                    <p className="text-sm text-text">{t.title}</p>
                     <p className="text-[10px] text-gray-500">{t.category?.replace(/_/g, ' ')} — {t.mitre_tactic}</p>
                   </div>
                 </div>

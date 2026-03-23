@@ -7,8 +7,8 @@ import {
 } from 'recharts';
 import {
   Shield, TrendingUp, AlertTriangle, Server, Users, Zap,
-  Activity, Target, BarChart3, Clock, CheckCircle2, XCircle,
-  ArrowUpRight, ArrowDownRight, Eye, Layers
+  Activity, Target, BarChart3, Clock, CheckCircle2,
+  ArrowUpRight, Eye, Layers
 } from 'lucide-react';
 import { api } from '../api';
 import Loader from '../components/Loader';

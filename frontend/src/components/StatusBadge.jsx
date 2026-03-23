@@ -5,7 +5,7 @@ const styles = {
   HIGH: 'bg-orange-500/15 text-orange-400 border-orange-500/25 shadow-orange-500/8',
   MEDIUM: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25 shadow-yellow-500/8',
   LOW: 'bg-blue-500/15 text-blue-400 border-blue-500/25 shadow-blue-500/8',
-  INFO: 'bg-slate-500/15 text-slate-400 border-slate-500/25 shadow-slate-500/8',
+  INFO: 'bg-slate-500/15 text-text-muted border-slate-500/25 shadow-slate-500/8',
   running: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25 shadow-cyan-500/8',
   completed: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25 shadow-emerald-500/8',
   failed: 'bg-rose-500/15 text-rose-400 border-rose-500/25 shadow-rose-500/8',

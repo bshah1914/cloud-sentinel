@@ -25,7 +25,7 @@ export default function AdminPanel() {
       setStats(s);
       setClients(c.clients || []);
       setActivity(a.activity || []);
-    } catch (e) { console.error(e); }
+    } catch (e) { }
     setLoading(false);
   }
 
@@ -96,11 +96,11 @@ export default function AdminPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
+          <h1 className="text-2xl font-bold text-text">Admin Panel</h1>
           <p className="text-sm text-gray-400 mt-1">Manage clients, plans, and platform</p>
         </div>
         <button onClick={() => { setShowAddClient(true); setForm({ name: '', contact_email: '', plan: 'free' }); }}
-          className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-medium transition">
+          className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-text rounded-lg text-sm font-medium transition">
           + Add Client
         </button>
       </div>
@@ -109,10 +109,10 @@ export default function AdminPanel() {
         <button onClick={() => setMsg('')} className="ml-2 text-violet-400">x</button></div>}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-[#1e1b4b]/50 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-surface-light/50 p-1 rounded-lg w-fit">
         {tabs.map(t => (
           <button key={t.id} onClick={() => { setTab(t.id); setSelectedClient(null); }}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${tab === t.id || (tab === 'client-detail' && t.id === 'clients') ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${tab === t.id || (tab === 'client-detail' && t.id === 'clients') ? 'bg-violet-600 text-text' : 'text-gray-400 hover:text-text'}`}>
             {t.icon} {t.label}
           </button>
         ))}
@@ -132,7 +132,7 @@ export default function AdminPanel() {
               { label: 'Total Findings', value: stats.total_findings, color: '#ef4444' },
               { label: 'Avg Security Score', value: `${stats.avg_security_score}/100`, color: stats.avg_security_score > 70 ? '#10b981' : '#f59e0b' },
             ].map((s, i) => (
-              <div key={i} className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-4">
+              <div key={i} className="bg-surface-light/60 border border-white/5 rounded-xl p-4">
                 <p className="text-xs text-gray-400 mb-1">{s.label}</p>
                 <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
               </div>
@@ -140,23 +140,23 @@ export default function AdminPanel() {
           </div>
 
           {/* Plan Distribution */}
-          <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Plan Distribution</h3>
+          <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-text mb-4">Plan Distribution</h3>
             <div className="flex gap-6">
               {Object.entries(stats.plan_distribution || {}).map(([plan, count]) => (
                 <div key={plan} className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full" style={{ background: plans[plan]?.color || '#666' }}></div>
-                  <span className="text-sm text-gray-300 capitalize">{plan}: <span className="text-white font-bold">{count}</span></span>
+                  <span className="text-sm text-gray-300 capitalize">{plan}: <span className="text-text font-bold">{count}</span></span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Recent Activity</h3>
+          <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-text mb-4">Recent Activity</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {activity.slice(0, 10).map((a, i) => (
+              {(activity || []).slice(0, 10).map((a, i) => (
                 <div key={i} className="flex items-center justify-between text-sm py-2 border-b border-white/5">
                   <span className="text-gray-300">{a.action}</span>
                   <span className="text-gray-500 text-xs">{new Date(a.timestamp).toLocaleString()}</span>
@@ -170,7 +170,7 @@ export default function AdminPanel() {
 
       {/* Clients Tab */}
       {tab === 'clients' && (
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl overflow-hidden">
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/10">
@@ -180,10 +180,10 @@ export default function AdminPanel() {
               </tr>
             </thead>
             <tbody>
-              {clients.map(c => (
+              {(clients || []).map(c => (
                 <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => viewClient(c.id)}>
                   <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-white">{c.name}</p>
+                    <p className="text-sm font-medium text-text">{c.name}</p>
                     <p className="text-xs text-gray-500">{c.contact_email}</p>
                   </td>
                   <td className="px-4 py-3">
@@ -231,7 +231,7 @@ export default function AdminPanel() {
 
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-white">{selectedClient.name}</h2>
+              <h2 className="text-xl font-bold text-text">{selectedClient.name}</h2>
               <p className="text-sm text-gray-400">{selectedClient.contact_email}</p>
             </div>
             <div className="flex gap-2">
@@ -254,7 +254,7 @@ export default function AdminPanel() {
               { l: 'Findings', v: selectedClient.total_findings || 0, c: '#ef4444' },
               { l: 'MRR', v: `$${selectedClient.billing?.mrr || 0}`, c: '#f59e0b' },
             ].map((s, i) => (
-              <div key={i} className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-4">
+              <div key={i} className="bg-surface-light/60 border border-white/5 rounded-xl p-4">
                 <p className="text-xs text-gray-400">{s.l}</p>
                 <p className="text-lg font-bold mt-1" style={{ color: s.c }}>{s.v}</p>
               </div>
@@ -262,17 +262,17 @@ export default function AdminPanel() {
           </div>
 
           {/* Users */}
-          <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
+          <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white">Client Users</h3>
+              <h3 className="text-sm font-semibold text-text">Client Users</h3>
               <button onClick={() => { setShowAddUser(true); setForm({ username: '', password: '', email: '', role: 'viewer' }); }}
-                className="text-xs px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg">+ Add User</button>
+                className="text-xs px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-text rounded-lg">+ Add User</button>
             </div>
             <div className="space-y-2">
               {(selectedClient.users || []).map(u => (
                 <div key={u.id} className="flex items-center justify-between py-2 border-b border-white/5">
                   <div>
-                    <span className="text-sm text-white font-medium">{u.username}</span>
+                    <span className="text-sm text-text font-medium">{u.username}</span>
                     <span className="text-xs text-gray-500 ml-2">{u.email}</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -288,8 +288,8 @@ export default function AdminPanel() {
           </div>
 
           {/* Activity */}
-          <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Recent Activity</h3>
+          <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-text mb-4">Recent Activity</h3>
             <div className="space-y-2">
               {(selectedClient.activity || []).map((a, i) => (
                 <div key={i} className="flex justify-between text-sm py-1 border-b border-white/5">
@@ -307,10 +307,10 @@ export default function AdminPanel() {
 
       {/* Activity Tab */}
       {tab === 'activity' && (
-        <div className="bg-[#1e1b4b]/60 border border-white/5 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">Platform Activity Log</h3>
+        <div className="bg-surface-light/60 border border-white/5 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-text mb-4">Platform Activity Log</h3>
           <div className="space-y-2">
-            {activity.map((a, i) => (
+            {(activity || []).map((a, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-white/5">
                 <div>
                   <span className="text-sm text-gray-300">{a.action}</span>
@@ -327,23 +327,23 @@ export default function AdminPanel() {
       {/* Add Client Modal */}
       {showAddClient && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowAddClient(false)}>
-          <div className="bg-[#1a1545] border border-white/10 rounded-2xl p-6 w-[420px]" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-4">Add New Client</h3>
+          <div className="bg-surface-light border border-white/10 rounded-2xl p-6 w-[420px]" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text mb-4">Add New Client</h3>
             <form onSubmit={handleAddClient} className="space-y-4">
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Organization Name</label>
                 <input value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} required
-                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm" placeholder="Acme Corp" />
+                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-text text-sm" placeholder="Acme Corp" />
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Contact Email</label>
                 <input type="email" value={form.contact_email || ''} onChange={e => setForm({ ...form, contact_email: e.target.value })} required
-                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm" placeholder="admin@acme.com" />
+                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-text text-sm" placeholder="admin@acme.com" />
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Plan</label>
                 <select value={form.plan || 'free'} onChange={e => setForm({ ...form, plan: e.target.value })}
-                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm">
+                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-text text-sm">
                   <option value="free">Free - $0/mo</option>
                   <option value="pro">Professional - $99/mo</option>
                   <option value="enterprise">Enterprise - $499/mo</option>
@@ -351,7 +351,7 @@ export default function AdminPanel() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddClient(false)} className="flex-1 py-2 border border-white/10 rounded-lg text-gray-400 text-sm">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm font-medium">Create Client</button>
+                <button type="submit" className="flex-1 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-text text-sm font-medium">Create Client</button>
               </div>
             </form>
           </div>
@@ -361,28 +361,28 @@ export default function AdminPanel() {
       {/* Add User Modal */}
       {showAddUser && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowAddUser(false)}>
-          <div className="bg-[#1a1545] border border-white/10 rounded-2xl p-6 w-[420px]" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-4">Add Client User</h3>
+          <div className="bg-surface-light border border-white/10 rounded-2xl p-6 w-[420px]" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text mb-4">Add Client User</h3>
             <form onSubmit={handleAddUser} className="space-y-4">
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Username</label>
                 <input value={form.username || ''} onChange={e => setForm({ ...form, username: e.target.value })} required
-                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm" />
+                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-text text-sm" />
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Email</label>
                 <input type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} required
-                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm" />
+                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-text text-sm" />
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Password</label>
                 <input type="password" value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} required
-                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm" />
+                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-text text-sm" />
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Role</label>
                 <select value={form.role || 'viewer'} onChange={e => setForm({ ...form, role: e.target.value })}
-                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm">
+                  className="w-full bg-[#0f0a2a] border border-white/10 rounded-lg px-3 py-2 text-text text-sm">
                   <option value="client_admin">Client Admin</option>
                   <option value="editor">Editor</option>
                   <option value="viewer">Viewer</option>
@@ -390,7 +390,7 @@ export default function AdminPanel() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 py-2 border border-white/10 rounded-lg text-gray-400 text-sm">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm font-medium">Create User</button>
+                <button type="submit" className="flex-1 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-text text-sm font-medium">Create User</button>
               </div>
             </form>
           </div>

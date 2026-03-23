@@ -1,3 +1,4 @@
+import { getBase } from "../api";
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, Send, X, Sparkles, User, Minimize2, Maximize2, Shield, Zap, Brain, RefreshCw } from 'lucide-react';
@@ -93,7 +94,8 @@ export default function AiChat() {
 
     try {
       const token = localStorage.getItem('cm_token');
-      const res = await fetch('/api/ai/chat', {
+      const apiBase = getBase();
+      const res = await fetch(`${apiBase}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ message: msg, history: messages.slice(-6) }),
@@ -125,7 +127,7 @@ export default function AiChat() {
             className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-2xl shadow-2xl shadow-primary/30 flex items-center justify-center group overflow-hidden"
             style={{ background: 'linear-gradient(135deg, #6366f1, #06b6d4)' }}
           >
-            <Sparkles className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+            <Sparkles className="w-6 h-6 text-text group-hover:scale-110 transition-transform" />
             <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-surface dot-pulse" />
             {/* Shine effect */}
             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
@@ -156,7 +158,7 @@ export default function AiChat() {
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg"
                   style={{ background: 'linear-gradient(135deg, #6366f1, #06b6d4)' }}>
-                  <Bot className="w-4.5 h-4.5 text-white" />
+                  <Bot className="w-4.5 h-4.5 text-text" />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-text flex items-center gap-1.5">
@@ -268,7 +270,7 @@ export default function AiChat() {
                       className="w-10 h-10 rounded-xl flex items-center justify-center disabled:opacity-20 transition-all shadow-sm"
                       style={{ background: input.trim() ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'rgba(99,102,241,0.1)' }}
                     >
-                      <Send className="w-4 h-4 text-white" />
+                      <Send className="w-4 h-4 text-text" />
                     </motion.button>
                   </div>
                   <p className="text-[8px] text-text-muted/40 text-center mt-1.5">Powered by CloudSentinel Security Intelligence Engine</p>

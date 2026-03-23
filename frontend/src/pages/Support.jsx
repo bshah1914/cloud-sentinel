@@ -48,7 +48,7 @@ const STATUS_STYLES = {
   open: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/15', label: 'Open' },
   in_progress: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/15', label: 'In Progress' },
   resolved: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/15', label: 'Resolved' },
-  closed: { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/15', label: 'Closed' },
+  closed: { bg: 'bg-slate-500/10', text: 'text-text-muted', border: 'border-slate-500/15', label: 'Closed' },
 };
 
 export default function Support() {
@@ -108,7 +108,7 @@ export default function Support() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="report-header text-center">
         <div className="w-12 h-12 rounded-2xl gradient-border flex items-center justify-center mx-auto mb-3 shadow-lg shadow-primary/15">
-          <Headphones className="w-6 h-6 text-white" />
+          <Headphones className="w-6 h-6 text-text" />
         </div>
         <h1 className="text-2xl font-bold text-text">Support Center</h1>
         <p className="text-text-muted text-sm mt-1">Get help, report issues, or share feedback</p>
@@ -163,7 +163,7 @@ export default function Support() {
                 return (
                   <div key={i} className="border border-border/30 rounded-xl overflow-hidden bg-surface-light/50">
                     <button onClick={() => { const n = new Set(expandedFaq); n.has(i) ? n.delete(i) : n.add(i); setExpandedFaq(n); }}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all text-left">
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface/40 transition-all text-left">
                       <span className="text-sm font-medium text-text">{faq.q}</span>
                       <motion.div animate={{ rotate: isOpen ? 180 : 0 }}><ChevronDown className="w-4 h-4 text-text-muted" /></motion.div>
                     </button>

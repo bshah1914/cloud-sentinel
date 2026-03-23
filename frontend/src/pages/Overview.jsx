@@ -134,7 +134,7 @@ export default function Overview() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl gradient-border flex items-center justify-center shadow-lg shadow-primary/15">
-              <Globe className="w-5 h-5 text-white" />
+              <Globe className="w-5 h-5 text-text" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-text">Executive Overview</h1>
@@ -441,7 +441,7 @@ export default function Overview() {
               { to: '/iam', icon: Eye, label: 'IAM Analysis', desc: 'Review users, roles, policies and MFA status', color: '#10b981' },
             ].map(({ to, icon: Icon, label, desc, color }) => (
               <Link key={to} to={to}
-                className="flex items-center gap-4 p-3.5 rounded-xl border border-border/20 hover:border-border/50 hover:bg-white/[0.02] transition-all group">
+                className="flex items-center gap-4 p-3.5 rounded-xl border border-border/20 hover:border-border/50 hover:bg-surface/40 transition-all group">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}12` }}>
                   <Icon className="w-5 h-5" style={{ color }} />
                 </div>

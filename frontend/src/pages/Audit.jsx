@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer
 } from 'recharts';
 import {
-  ShieldCheck, Play, Filter, ChevronDown, ChevronRight,
+  ShieldCheck, Filter, ChevronRight,
   AlertTriangle, Search, Download, FileText, Zap, Target
 } from 'lucide-react';
 import { runAudit, exportAudit } from '../api';
@@ -244,7 +244,7 @@ export default function Audit() {
               </h3>
             </div>
             <div className="space-y-0.5">
-              {filtered.map((f, i) => (
+              {(filtered || []).map((f, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0 }}

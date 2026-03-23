@@ -711,7 +711,7 @@ export default function Docs() {
         <div className="sticky top-24 space-y-4">
           <div className="flex items-center gap-2.5 mb-5">
             <div className="w-9 h-9 rounded-xl gradient-border flex items-center justify-center shadow-lg shadow-primary/15">
-              <BookOpen className="w-4.5 h-4.5 text-white" />
+              <BookOpen className="w-4.5 h-4.5 text-text" />
             </div>
             <div>
               <h2 className="text-sm font-bold text-text">Documentation</h2>
@@ -732,7 +732,7 @@ export default function Docs() {
               return (
                 <button key={doc.id} onClick={() => { setActiveDoc(doc.id); setExpandedSections(new Set([0])); }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all ${
-                    isActive ? 'bg-primary/10 text-primary-light' : 'text-text-muted hover:text-text hover:bg-white/[0.03]'
+                    isActive ? 'bg-primary/10 text-primary-light' : 'text-text-muted hover:text-text hover:bg-surface/40'
                   }`}>
                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isActive ? 'bg-primary/15' : 'bg-surface-lighter/30'}`}>
                     <Icon className="w-3.5 h-3.5" style={{ color: isActive ? doc.color : undefined }} />
@@ -767,7 +767,7 @@ export default function Docs() {
                 return (
                   <div key={i} className="border border-border/30 rounded-2xl overflow-hidden bg-surface-light/50">
                     <button onClick={() => toggleSection(i)}
-                      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/[0.02] transition-all text-left">
+                      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface/40 transition-all text-left">
                       <div className="flex items-center gap-2.5">
                         <span className="text-[10px] font-bold text-primary-light bg-primary/10 w-6 h-6 rounded-lg flex items-center justify-center">{i + 1}</span>
                         <span className="text-sm font-semibold text-text">{section.title}</span>

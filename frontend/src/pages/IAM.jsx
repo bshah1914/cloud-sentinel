@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import {
-  KeyRound, Users, ShieldCheck, FileText, ChevronDown,
+  KeyRound, Users, ShieldCheck, FileText,
   ChevronRight, Search, UserCheck, UserX
 } from 'lucide-react';
 import { getIAM } from '../api';

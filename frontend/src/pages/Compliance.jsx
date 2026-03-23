@@ -35,7 +35,7 @@ const STATUS_COLORS = {
   FAIL: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/15' },
   WARN: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/15' },
   ERROR: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/15' },
-  'N/A': { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/15' },
+  'N/A': { bg: 'bg-slate-500/10', text: 'text-text-muted', border: 'border-slate-500/15' },
 };
 
 function ScoreRing({ score, size = 80, strokeWidth = 6 }) {
@@ -162,7 +162,7 @@ export default function Compliance() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="report-header flex items-end justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl gradient-border flex items-center justify-center shadow-lg shadow-primary/15">
-            <Shield className="w-5 h-5 text-white" />
+            <Shield className="w-5 h-5 text-text" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-text">Cloud Compliance</h1>
@@ -392,7 +392,7 @@ export default function Compliance() {
                 return (
                   <div key={i}>
                     <button onClick={() => { const n = new Set(expandedChecks); n.has(i) ? n.delete(i) : n.add(i); setExpandedChecks(n); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.02] transition-all text-left group">
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-surface/40 transition-all text-left group">
                       <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}><ChevronRight className="w-3.5 h-3.5 text-text-muted" /></motion.div>
                       <span className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
                         {f.severity}

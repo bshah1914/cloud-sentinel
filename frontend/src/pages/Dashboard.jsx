@@ -3,7 +3,7 @@ import { useOutletContext, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, AreaChart, Area, RadarChart,
+  Tooltip, ResponsiveContainer, Legend, RadarChart,
   Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 import {
@@ -11,7 +11,7 @@ import {
   AlertTriangle, MapPin, ScanLine, Plus, Users, Lock, Unlock,
   HardDrive, Network, Camera, Activity, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, Download, FileText, Zap, Eye, TrendingUp,
-  BarChart3, PieChart as PieChartIcon, Cpu, Box
+  BarChart3, PieChart as Box
 } from 'lucide-react';
 import { getDashboard, exportDashboard } from '../api';
 import { useToast } from '../components/Toast';

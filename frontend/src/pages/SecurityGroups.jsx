@@ -110,7 +110,7 @@ export default function SecurityGroups() {
 
           {/* Risky Groups */}
           <div className="space-y-3">
-            {risky_groups.map((sg, i) => (
+            {(risky_groups || []).map((sg, i) => (
               <Card key={i} delay={0.15 + i * 0.025}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">

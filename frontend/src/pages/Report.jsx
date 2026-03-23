@@ -152,7 +152,7 @@ export default function Report() {
     return (
       <div className="border border-border/30 rounded-2xl overflow-hidden bg-surface-light/50">
         <button onClick={() => toggleSection(id)}
-          className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/[0.015] transition-all text-left">
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-surface/40 transition-all text-left">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color || '#7c3aed'}12` }}>
               {icon}
@@ -176,7 +176,7 @@ export default function Report() {
         <div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl gradient-border flex items-center justify-center shadow-lg shadow-primary/15">
-              <FileText className="w-5 h-5 text-white" />
+              <FileText className="w-5 h-5 text-text" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-text">Comprehensive Report</h1>

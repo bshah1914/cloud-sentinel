@@ -106,7 +106,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={(() => { const p = window.location.pathname; const m = p.match(/^(\/[^/]+)\//); return (m && m[1] !== '/api') ? m[1] : '/'; })()}>
           <Routes>
             <Route path="/login" element={<LoginRoute />} />
             <Route path="/*" element={<ProtectedRoutes />} />

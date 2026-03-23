@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   FileText, User, Clock, Shield, Server, ScanLine, Download,
-  LogIn, LogOut, AlertTriangle, Settings, Eye, Filter, Search
+  LogIn, LogOut, AlertTriangle, Settings, Eye, Search
 } from 'lucide-react';
 import { api } from '../api';
 import Loader from '../components/Loader';
@@ -85,7 +85,7 @@ export default function AuditLog() {
             <p className="text-sm">No audit log entries yet</p>
             <p className="text-xs mt-1">Actions like logins, scans, and exports will appear here</p>
           </div>
-        ) : filtered.map((log, i) => {
+        ) : (filtered || []).map((log, i) => {
           const Icon = ACTION_ICONS[log.action] || FileText;
           const color = ACTION_COLORS[log.action] || 'text-text-muted bg-slate-500/10';
           return (

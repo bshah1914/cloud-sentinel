@@ -38,37 +38,73 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-# ── User Management ─────────────────────────────────────────────
+# ── User Management (Database-backed) ────────────────────────────
+def _db_session():
+    """Get a database session."""
+    from models.database import SessionLocal
+    return SessionLocal()
+
 def _load_users() -> list[dict]:
+    """Load users from database, fallback to JSON."""
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        users = db.query(DBUser).all()
+        db.close()
+        if users:
+            return [{"username": u.username, "hashed_password": u.password_hash,
+                      "role": u.role, "user_type": u.user_type, "org_id": u.org_id,
+                      "email": u.email, "id": u.id, "is_active": u.is_active,
+                      "created": u.created_at.isoformat() if u.created_at else ""} for u in users]
+    except Exception:
+        pass
+    # Fallback to JSON
     if USERS_FILE.exists():
         with open(USERS_FILE) as f:
             return json.load(f)
     return []
 
-
 def _save_users(users: list[dict]):
+    """Save to JSON for backward compat."""
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
 
-
 def _init_admin():
-    users = _load_users()
-    admin = next((u for u in users if u["username"] == "admin"), None)
-    if admin:
-        admin["hashed_password"] = pwd_context.hash("admin123")
-    else:
-        users.append({
-            "username": "admin",
-            "hashed_password": pwd_context.hash("admin123"),
-            "role": "admin",
-            "created": datetime.now().isoformat(),
-        })
-    _save_users(users)
-
+    """Initialize admin user in database."""
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        admin = db.query(DBUser).filter(DBUser.username == "admin").first()
+        if not admin:
+            # Will be created by seed_database()
+            pass
+        db.close()
+    except Exception:
+        pass
 
 def _authenticate_user(username: str, password: str) -> Optional[dict]:
-    for user in _load_users():
-        if user["username"] == username and pwd_context.verify(password, user["hashed_password"]):
+    """Authenticate from database first, then JSON fallback."""
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        user = db.query(DBUser).filter(DBUser.username == username, DBUser.is_active == True).first()
+        if user and pwd_context.verify(password, user.password_hash):
+            result = {"username": user.username, "hashed_password": user.password_hash,
+                      "role": user.role, "user_type": user.user_type, "org_id": user.org_id,
+                      "email": user.email, "id": user.id,
+                      "created": user.created_at.isoformat() if user.created_at else ""}
+            # Update last_login
+            user.last_login = datetime.utcnow()
+            db.commit()
+            db.close()
+            return result
+        db.close()
+    except Exception:
+        pass
+    # Fallback to JSON
+    for user in (json.load(open(USERS_FILE)) if USERS_FILE.exists() else []):
+        hp = user.get("hashed_password", user.get("password", ""))
+        if user["username"] == username and hp and pwd_context.verify(password, hp):
             return user
     return None
 
@@ -90,22 +126,40 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 
     user_type = payload.get("user_type", "owner")
 
-    # Owner/admin users
+    # Try database first
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        db_user = db.query(DBUser).filter(DBUser.username == username, DBUser.is_active == True).first()
+        if db_user:
+            result = {"username": db_user.username, "role": db_user.role,
+                      "user_type": db_user.user_type, "org_id": db_user.org_id,
+                      "email": db_user.email, "id": db_user.id,
+                      "org_name": payload.get("org_name", "")}
+            db.close()
+            return result
+        db.close()
+    except Exception:
+        pass
+
+    # Fallback to JSON
     if user_type == "owner":
         for user in _load_users():
             if user["username"] == username:
                 user["user_type"] = "owner"
                 return user
 
-    # Client users
     if user_type == "client":
-        from tenants import _load_data
-        data = _load_data()
-        for user in data["client_users"]:
-            if user["username"] == username:
-                user["user_type"] = "client"
-                user["org_id"] = payload.get("org_id", user.get("org_id"))
-                return user
+        try:
+            from tenants import _load_data
+            data = _load_data()
+            for user in data.get("client_users", []):
+                if user["username"] == username:
+                    user["user_type"] = "client"
+                    user["org_id"] = payload.get("org_id", user.get("org_id"))
+                    return user
+        except Exception:
+            pass
 
     raise HTTPException(401, "User not found")
 
@@ -344,43 +398,67 @@ import tenants as tenant_mgr
 def login(req: LoginRequest, request: __import__("fastapi").Request = None):
     ip = request.client.host if request and request.client else "unknown"
 
-    # Try owner/admin login first
+    # Authenticate from database (handles both owner and client users)
     user = _authenticate_user(req.username, req.password)
     if user:
-        auth_log.info(f"LOGIN_SUCCESS owner={req.username} ip={ip}")
-        log_action(username=req.username, action="auth.login",
-                   details={"type": "owner", "role": user["role"]}, ip_address=ip)
-        token = _create_token(
-            {"sub": user["username"], "role": user["role"], "user_type": "owner"},
-            timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-        )
-        return {
-            "access_token": token, "token_type": "bearer",
-            "user": {"username": user["username"], "role": user["role"], "user_type": "owner"},
-        }
+        user_type = user.get("user_type", "owner")
+        org_id = user.get("org_id", "")
+        org_name = ""
 
-    # Try client login
-    client_user = tenant_mgr.authenticate_client_user(req.username, req.password)
-    if client_user:
-        if isinstance(client_user, dict) and "error" in client_user:
-            auth_log.warning(f"LOGIN_BLOCKED user={req.username} reason={client_user['error']} ip={ip}")
-            raise HTTPException(403, client_user["error"])
-        auth_log.info(f"LOGIN_SUCCESS client={req.username} org={client_user.get('org_id')} ip={ip}")
-        log_action(org_id=client_user.get("org_id"), username=req.username, action="auth.login",
-                   details={"type": "client", "org": client_user.get("org_name")}, ip_address=ip)
-        token = _create_token(
-            {"sub": client_user["username"], "role": client_user["role"],
-             "user_type": "client", "org_id": client_user["org_id"]},
-            timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-        )
-        return {
-            "access_token": token, "token_type": "bearer",
-            "user": {
-                "username": client_user["username"], "role": client_user["role"],
-                "user_type": "client", "org_id": client_user["org_id"],
-                "org_name": client_user.get("org_name", ""),
-            },
-        }
+        # Get org name for client users
+        if user_type == "client" and org_id:
+            try:
+                from models.database import SessionLocal, Organization
+                db = SessionLocal()
+                org = db.query(Organization).filter(Organization.id == org_id).first()
+                if org:
+                    org_name = org.name
+                    if org.status != "active":
+                        auth_log.warning(f"LOGIN_BLOCKED user={req.username} org_suspended ip={ip}")
+                        db.close()
+                        raise HTTPException(403, "Organization is suspended")
+                db.close()
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+
+        auth_log.info(f"LOGIN_SUCCESS {user_type}={req.username} ip={ip}")
+        log_action(org_id=org_id, username=req.username, action="auth.login",
+                   details={"type": user_type, "role": user["role"]}, ip_address=ip)
+
+        token_data = {"sub": user["username"], "role": user["role"], "user_type": user_type}
+        if user_type == "client":
+            token_data["org_id"] = org_id
+            token_data["org_name"] = org_name
+
+        token = _create_token(token_data, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+
+        response_user = {"username": user["username"], "role": user["role"], "user_type": user_type}
+        if user_type == "client":
+            response_user["org_id"] = org_id
+            response_user["org_name"] = org_name
+
+        return {"access_token": token, "token_type": "bearer", "user": response_user}
+
+    # Fallback: try legacy tenant system
+    try:
+        client_user = tenant_mgr.authenticate_client_user(req.username, req.password)
+        if client_user:
+            if isinstance(client_user, dict) and "error" in client_user:
+                raise HTTPException(403, client_user["error"])
+            token = _create_token(
+                {"sub": client_user["username"], "role": client_user["role"],
+                 "user_type": "client", "org_id": client_user.get("org_id", "")},
+                timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+            return {"access_token": token, "token_type": "bearer",
+                    "user": {"username": client_user["username"], "role": client_user["role"],
+                             "user_type": "client", "org_id": client_user.get("org_id", ""),
+                             "org_name": client_user.get("org_name", "")}}
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     auth_log.warning(f"LOGIN_FAILED user={req.username} ip={ip}")
     log_action(username=req.username, action="auth.login_failed",
@@ -508,15 +586,36 @@ def client_profile(user: dict = Depends(get_current_user)):
     org_id = user.get("org_id")
     if not org_id:
         raise HTTPException(403, "Client access required")
+
+    # Try database first
+    try:
+        from models.database import SessionLocal, Organization, User as DBUser, CloudAccount
+        db = SessionLocal()
+        org = db.query(Organization).filter(Organization.id == org_id).first()
+        if org:
+            users = db.query(DBUser).filter(DBUser.org_id == org_id).all()
+            accounts = db.query(CloudAccount).filter(CloudAccount.org_id == org_id).all()
+            org_data = {
+                "id": org.id, "name": org.name, "plan": org.plan, "status": org.status,
+                "max_accounts": org.max_accounts, "max_scans_month": org.max_scans_month,
+                "total_resources": sum(a.total_resources for a in accounts),
+                "security_score": accounts[0].security_score if accounts else 0,
+                "cloud_accounts": [{"id": a.id, "name": a.name, "provider": a.provider,
+                                    "account_id": a.account_id} for a in accounts],
+            }
+            user_list = [{"username": u.username, "role": u.role, "email": u.email} for u in users]
+            db.close()
+            return {"organization": org_data, "plan": {"name": org.plan}, "users": user_list}
+        db.close()
+    except Exception:
+        pass
+
+    # Fallback to tenant system
     org = tenant_mgr.get_organization(org_id)
     if not org:
         raise HTTPException(404, "Organization not found")
     plan_details = tenant_mgr.PLANS.get(org["plan"], {})
-    return {
-        "organization": org,
-        "plan": plan_details,
-        "users": tenant_mgr.get_client_users(org_id),
-    }
+    return {"organization": org, "plan": plan_details, "users": tenant_mgr.get_client_users(org_id)}
 
 
 @app.get("/api/client/invoices")
