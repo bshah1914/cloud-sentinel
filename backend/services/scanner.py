@@ -295,9 +295,45 @@ def run_scan(scan_id, account_id):
             return
 
         session = _get_boto_session(account)
-        all_results = {}
+
+        # Validate credentials before scanning
+        try:
+            sts = session.client("sts")
+            identity = sts.get_caller_identity()
+            actual_account = identity.get("Account", "")
+            scan.results = {"caller_identity": identity}
+            db.commit()
+        except Exception as e:
+            err_msg = str(e)
+            if "InvalidClientTokenId" in err_msg or "InvalidAccessKeyId" in err_msg:
+                scan.status = "failed"
+                scan.error_message = f"Invalid AWS credentials — Access Key '{account.access_key[:8]}...' is not valid. Please check your Access Key ID and Secret Access Key."
+                scan.completed_at = utcnow()
+                db.commit()
+                return
+            elif "SignatureDoesNotMatch" in err_msg:
+                scan.status = "failed"
+                scan.error_message = "Invalid AWS Secret Access Key — the signature does not match. Please re-enter your Secret Access Key."
+                scan.completed_at = utcnow()
+                db.commit()
+                return
+            elif "ExpiredToken" in err_msg:
+                scan.status = "failed"
+                scan.error_message = "AWS credentials have expired. Please generate new Access Keys."
+                scan.completed_at = utcnow()
+                db.commit()
+                return
+            else:
+                scan.status = "failed"
+                scan.error_message = f"AWS credential validation failed: {err_msg}"
+                scan.completed_at = utcnow()
+                db.commit()
+                return
+
+        all_results = {"caller_identity": identity}
         all_findings = []
         total_resources = 0
+        errors_by_region = {}
 
         for region in AWS_REGIONS:
             try:
@@ -307,6 +343,26 @@ def run_scan(scan_id, account_id):
                 all_findings.extend(region_data.get("findings", []))
             except Exception as e:
                 all_results[region] = {"error": str(e)}
+
+        # Check if scan found anything — warn if all regions returned 0
+        if total_resources == 0 and len(all_findings) == 0:
+            # Check for auth errors
+            auth_errors = sum(1 for r, d in all_results.items()
+                            if isinstance(d, dict) and "error" in d
+                            and ("Auth" in str(d["error"]) or "Access" in str(d["error"])))
+            if auth_errors > 0:
+                scan.error_message = (
+                    f"Scan completed but found 0 resources. "
+                    f"{auth_errors} regions returned access denied errors. "
+                    f"The IAM user/role needs ReadOnlyAccess or specific Describe* permissions. "
+                    f"Connected to AWS account: {actual_account}"
+                )
+            else:
+                scan.error_message = (
+                    f"Scan completed but found 0 resources across {len(AWS_REGIONS)} regions. "
+                    f"Connected to AWS account: {actual_account}. "
+                    f"This account may have no resources or the IAM user lacks permissions."
+                )
 
         # Count severities
         critical = sum(1 for f in all_findings if f["severity"] == "CRITICAL")
@@ -318,7 +374,7 @@ def run_scan(scan_id, account_id):
         score = max(0, 100 - (critical * 10) - (high * 3) - (medium * 1))
 
         # Update scan record
-        scan.status = "completed"
+        scan.status = "completed" if total_resources > 0 or len(all_findings) > 0 else "warning"
         scan.completed_at = utcnow()
         scan.regions_scanned = len(AWS_REGIONS)
         scan.resources_found = total_resources
