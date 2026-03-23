@@ -38,30 +38,67 @@ export default function Accounts() {
 
   useEffect(() => { load(); }, []);
 
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState(null);
+
   const handleAddAccount = async (e) => {
     e.preventDefault();
+    setError('');
+    setValidationResult(null);
+
+    if (!newAccount.access_key || !newAccount.secret_key) {
+      setError('Access Key and Secret Key are required');
+      return;
+    }
+
+    // Step 1: Validate credentials
+    setValidating(true);
     try {
-      // Save to legacy system (config.json)
-      await addAccount({ id: newAccount.id, name: newAccount.name, provider: newAccount.provider, default: newAccount.default });
-      // Also save to V2 database with credentials
       const { getBase } = await import('../api');
       const base = getBase();
       const token = localStorage.getItem('cm_token');
+
+      const valRes = await fetch(`${base}/validate-credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          access_key: newAccount.access_key,
+          secret_key: newAccount.secret_key,
+          role_arn: newAccount.role_arn || null,
+        }),
+      });
+      const valData = await valRes.json();
+
+      if (!valData.valid) {
+        setError(valData.error || 'Invalid credentials');
+        setValidating(false);
+        return;
+      }
+
+      setValidationResult(valData);
+
+      // Step 2: Save to database
+      const accountId = newAccount.id || valData.account_id;
+      await addAccount({ id: accountId, name: newAccount.name, provider: newAccount.provider, default: newAccount.default });
+
       await fetch(`${base}/v2/accounts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           name: newAccount.name, provider: newAccount.provider,
-          account_id: newAccount.id,
+          account_id: accountId,
           access_key: newAccount.access_key, secret_key: newAccount.secret_key,
           role_arn: newAccount.role_arn || null, region: 'us-east-1',
         }),
       });
+
       setNewAccount({ id: '', name: '', provider: 'aws', default: false, access_key: '', secret_key: '', role_arn: '' });
+      setValidationResult(null);
       setShowAddAccount(false);
       await load();
       await refreshAccounts();
     } catch (e) { setError(e.message); }
+    setValidating(false);
   };
 
   const handleRemoveAccount = async (id) => {
@@ -174,9 +211,16 @@ export default function Accounts() {
                   className="w-4 h-4 rounded accent-primary" />
                 Default Account
               </label>
-              <div className="ml-auto flex gap-2">
-                <button type="button" onClick={() => setShowAddAccount(false)} className="px-4 py-2.5 bg-surface-lighter/50 hover:bg-surface-lighter rounded-xl text-xs transition-colors">Cancel</button>
-                <button type="submit" className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-medium transition-colors">Connect Account</button>
+              <div className="ml-auto flex gap-2 items-center">
+                {validationResult && (
+                  <span className="text-xs text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> AWS Account: {validationResult.account_id}
+                  </span>
+                )}
+                <button type="button" onClick={() => { setShowAddAccount(false); setValidationResult(null); }} className="px-4 py-2.5 bg-surface-lighter/50 hover:bg-surface-lighter rounded-xl text-xs transition-colors">Cancel</button>
+                <button type="submit" disabled={validating} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl text-xs font-medium transition-colors">
+                  {validating ? 'Validating...' : 'Validate & Connect'}
+                </button>
               </div>
             </div>
           </motion.form>

@@ -674,6 +674,42 @@ def validate_provider_credentials(provider_id: str, credentials: dict, user: dic
     return plugin.collector.validate_credentials(credentials)
 
 
+class ValidateKeysRequest(BaseModel):
+    access_key: str
+    secret_key: str
+    role_arn: Optional[str] = None
+
+
+@app.post("/api/validate-credentials")
+def validate_aws_credentials(req: ValidateKeysRequest, user: dict = Depends(get_current_user)):
+    """Validate AWS credentials before saving — returns account info if valid."""
+    try:
+        import boto3
+        from botocore.exceptions import ClientError, NoCredentialsError
+        session = boto3.Session(
+            aws_access_key_id=req.access_key,
+            aws_secret_access_key=req.secret_key,
+        )
+        sts = session.client("sts")
+        identity = sts.get_caller_identity()
+        return {
+            "valid": True,
+            "account_id": identity.get("Account"),
+            "arn": identity.get("Arn"),
+            "user_id": identity.get("UserId"),
+        }
+    except Exception as e:
+        err = str(e)
+        if "InvalidClientTokenId" in err or "InvalidAccessKeyId" in err:
+            return {"valid": False, "error": "Invalid Access Key ID — this key does not exist in AWS."}
+        elif "SignatureDoesNotMatch" in err:
+            return {"valid": False, "error": "Invalid Secret Access Key — the signature does not match."}
+        elif "ExpiredToken" in err:
+            return {"valid": False, "error": "Credentials have expired. Generate new Access Keys in AWS IAM."}
+        else:
+            return {"valid": False, "error": f"Validation failed: {err}"}
+
+
 @app.get("/api/providers/{provider_id}/regions")
 def get_provider_regions(provider_id: str, user: dict = Depends(get_current_user)):
     """Get available regions for a provider (static list, no credentials needed)."""
