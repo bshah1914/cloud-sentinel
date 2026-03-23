@@ -540,7 +540,26 @@ def admin_update_client(org_id: str, req: OrgUpdateRequest, user: dict = Depends
 
 @app.delete("/api/admin/clients/{org_id}")
 def admin_delete_client(org_id: str, user: dict = Depends(require_owner)):
-    tenant_mgr.delete_organization(org_id)
+    # Delete from database
+    try:
+        from models.database import SessionLocal, Organization, User as DBUser, CloudAccount, Scan, Finding, AuditLog
+        db = SessionLocal()
+        # Delete all related data
+        db.query(Finding).filter(Finding.org_id == org_id).delete()
+        db.query(AuditLog).filter(AuditLog.org_id == org_id).delete()
+        db.query(Scan).filter(Scan.org_id == org_id).delete()
+        db.query(CloudAccount).filter(CloudAccount.org_id == org_id).delete()
+        db.query(DBUser).filter(DBUser.org_id == org_id).delete()
+        db.query(Organization).filter(Organization.id == org_id).delete()
+        db.commit()
+        db.close()
+    except Exception:
+        pass
+    # Also delete from JSON tenant system
+    try:
+        tenant_mgr.delete_organization(org_id)
+    except Exception:
+        pass
     return {"status": "deleted"}
 
 

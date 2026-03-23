@@ -50,53 +50,11 @@ def seed_database():
         )
         db.add(admin)
 
-        # 3. Create demo client org (CNS Technologies)
-        cns_org = Organization(
-            id="cns_tech",
-            name="CNS Technologies",
-            slug="cns",
-            plan="pro",
-            max_accounts=5,
-            max_scans_month=50,
-            max_users=10,
-            email_alerts=True,
-            alert_email="admin@cns-tech.com",
-        )
-        db.add(cns_org)
-
-        # 4. Create client admin user
-        cns_admin = User(
-            id=gen_id(),
-            username="cns_admin",
-            email="admin@cns-tech.com",
-            password_hash=pwd_context.hash("cns123"),
-            role="client_admin",
-            user_type="client",
-            org_id="cns_tech",
-        )
-        db.add(cns_admin)
-
-        # 5. Create CNS cloud account
-        cns_account = CloudAccount(
-            id="cns_aws_1",
-            org_id="cns_tech",
-            name="CNS",
-            provider="aws",
-            account_id="315817641850",
-            status="active",
-            total_resources=670,
-            security_score=30,
-        )
-        db.add(cns_account)
-
         db.commit()
-
-        # 6. Create default alert rules for CNS
-        create_default_alert_rules("cns_tech")
 
         print("[Seed] Database seeded successfully")
         print("  Owner: admin / admin123")
-        print("  Client: cns_admin / cns123")
+        print("  Add clients via Admin Panel")
 
     except Exception as e:
         db.rollback()
