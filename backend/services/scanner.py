@@ -45,18 +45,25 @@ def _get_boto_session(account):
         aws_secret_access_key=account.secret_key)
 
 
-def _scan_region(session, region):
-    """Scan a single AWS region and return resource data."""
+def _scan_region(session, region, raw_data=None):
+    """Scan a single AWS region and return resource data.
+    raw_data: dict to collect raw AWS API responses for file-based storage.
+    """
     results = {"region": region, "resources": {}, "findings": []}
+    if raw_data is not None:
+        raw_data[region] = {}
 
     try:
         # EC2 Instances
         ec2 = session.client("ec2", region_name=region)
         try:
+            reservations = ec2.describe_instances().get("Reservations", [])
             instances = []
-            for r in ec2.describe_instances().get("Reservations", []):
+            for r in reservations:
                 instances.extend(r.get("Instances", []))
             results["resources"]["ec2_instances"] = len(instances)
+            if raw_data is not None:
+                raw_data[region]["ec2-describe-instances"] = {"Reservations": reservations}
 
             # Check for public IPs, stopped instances
             for inst in instances:
@@ -83,6 +90,8 @@ def _scan_region(session, region):
         try:
             sgs = ec2.describe_security_groups().get("SecurityGroups", [])
             results["resources"]["security_groups"] = len(sgs)
+            if raw_data is not None:
+                raw_data[region]["ec2-describe-security-groups"] = {"SecurityGroups": sgs}
             for sg in sgs:
                 for perm in sg.get("IpPermissions", []):
                     for ip_range in perm.get("IpRanges", []):
@@ -102,22 +111,28 @@ def _scan_region(session, region):
 
         # VPCs
         try:
-            vpcs = ec2.describe_vpcs().get("Vpcs", [])
-            results["resources"]["vpcs"] = len(vpcs)
+            vpcs_resp = ec2.describe_vpcs().get("Vpcs", [])
+            results["resources"]["vpcs"] = len(vpcs_resp)
+            if raw_data is not None:
+                raw_data[region]["ec2-describe-vpcs"] = {"Vpcs": vpcs_resp}
         except ClientError:
             pass
 
         # Subnets
         try:
-            subnets = ec2.describe_subnets().get("Subnets", [])
-            results["resources"]["subnets"] = len(subnets)
+            subnets_resp = ec2.describe_subnets().get("Subnets", [])
+            results["resources"]["subnets"] = len(subnets_resp)
+            if raw_data is not None:
+                raw_data[region]["ec2-describe-subnets"] = {"Subnets": subnets_resp}
         except ClientError:
             pass
 
         # Snapshots
         try:
-            snapshots = ec2.describe_snapshots(OwnerIds=["self"]).get("Snapshots", [])
-            results["resources"]["snapshots"] = len(snapshots)
+            snapshots_resp = ec2.describe_snapshots(OwnerIds=["self"]).get("Snapshots", [])
+            results["resources"]["snapshots"] = len(snapshots_resp)
+            if raw_data is not None:
+                raw_data[region]["ec2-describe-snapshots"] = {"Snapshots": snapshots_resp}
         except ClientError:
             pass
 
@@ -126,6 +141,8 @@ def _scan_region(session, region):
             lam = session.client("lambda", region_name=region)
             functions = lam.list_functions().get("Functions", [])
             results["resources"]["lambda_functions"] = len(functions)
+            if raw_data is not None:
+                raw_data[region]["lambda-list-functions"] = {"Functions": functions}
             for fn in functions:
                 env_vars = fn.get("Environment", {}).get("Variables", {})
                 for key in env_vars:
@@ -145,6 +162,8 @@ def _scan_region(session, region):
             rds = session.client("rds", region_name=region)
             dbs = rds.describe_db_instances().get("DBInstances", [])
             results["resources"]["rds_instances"] = len(dbs)
+            if raw_data is not None:
+                raw_data[region]["rds-describe-db-instances"] = {"DBInstances": dbs}
             for db in dbs:
                 if db.get("PubliclyAccessible"):
                     results["findings"].append({
@@ -171,6 +190,8 @@ def _scan_region(session, region):
             elbv2 = session.client("elbv2", region_name=region)
             lbs = elbv2.describe_load_balancers().get("LoadBalancers", [])
             results["resources"]["load_balancers"] = len(lbs)
+            if raw_data is not None:
+                raw_data[region]["elbv2-describe-load-balancers"] = {"LoadBalancers": lbs}
         except ClientError:
             pass
 
@@ -180,6 +201,8 @@ def _scan_region(session, region):
                 s3 = session.client("s3", region_name=region)
                 buckets = s3.list_buckets().get("Buckets", [])
                 results["resources"]["s3_buckets"] = len(buckets)
+                if raw_data is not None:
+                    raw_data[region]["s3-list-buckets"] = {"Buckets": buckets}
 
                 for bucket in buckets[:20]:  # Limit to 20 to avoid throttling
                     try:
@@ -206,6 +229,8 @@ def _scan_region(session, region):
                 summary = iam.get_account_summary().get("SummaryMap", {})
                 results["resources"]["iam_users"] = summary.get("Users", 0)
                 results["resources"]["iam_roles"] = summary.get("Roles", 0)
+                if raw_data is not None:
+                    raw_data[region]["iam-get-account-summary"] = {"SummaryMap": summary}
 
                 if not summary.get("AccountMFAEnabled"):
                     results["findings"].append({
@@ -218,6 +243,12 @@ def _scan_region(session, region):
 
                 # Check users without MFA
                 users = iam.list_users().get("Users", [])
+                if raw_data is not None:
+                    try:
+                        auth_details = iam.get_account_authorization_details()
+                        raw_data[region]["iam-get-account-authorization-details"] = auth_details
+                    except ClientError:
+                        pass
                 for user in users:
                     mfa_devices = iam.list_mfa_devices(UserName=user["UserName"]).get("MFADevices", [])
                     if not mfa_devices:
@@ -334,15 +365,38 @@ def run_scan(scan_id, account_id):
         all_findings = []
         total_resources = 0
         errors_by_region = {}
+        raw_data = {}  # Collect raw AWS API responses for file storage
 
         for region in AWS_REGIONS:
             try:
-                region_data = _scan_region(session, region)
+                region_data = _scan_region(session, region, raw_data=raw_data)
                 all_results[region] = region_data
                 total_resources += sum(region_data.get("resources", {}).values())
                 all_findings.extend(region_data.get("findings", []))
             except Exception as e:
                 all_results[region] = {"error": str(e)}
+
+        # Save raw data to account-data/ directory for legacy parsers
+        try:
+            from pathlib import Path
+            from datetime import datetime
+            base_dir = Path(__file__).resolve().parent.parent.parent
+            acct_dir = base_dir / "account-data" / "aws" / account.name
+            acct_dir.mkdir(parents=True, exist_ok=True)
+            # Save caller identity
+            id_file = acct_dir / "caller-identity.json"
+            with open(id_file, "w") as f:
+                json.dump(identity, f, indent=2, default=str)
+            # Save per-region data
+            for rgn, rgn_raw in raw_data.items():
+                rgn_dir = acct_dir / rgn
+                rgn_dir.mkdir(parents=True, exist_ok=True)
+                for filename, data in rgn_raw.items():
+                    with open(rgn_dir / f"{filename}.json", "w") as f:
+                        json.dump(data, f, indent=2, default=str)
+        except Exception as file_err:
+            # Non-fatal — DB storage still works
+            pass
 
         # Check if scan found anything — warn if all regions returned 0
         if total_resources == 0 and len(all_findings) == 0:
@@ -370,8 +424,11 @@ def run_scan(scan_id, account_id):
         medium = sum(1 for f in all_findings if f["severity"] == "MEDIUM")
         low = sum(1 for f in all_findings if f["severity"] == "LOW")
 
-        # Calculate security score
-        score = max(0, 100 - (critical * 10) - (high * 3) - (medium * 1))
+        # Calculate security score (weighted penalty relative to total findings)
+        total_findings = len(all_findings) or 1
+        weighted_sum = (critical * 10) + (high * 5) + (medium * 2) + (low * 1)
+        max_penalty = total_findings * 10  # worst case: all critical
+        score = max(0, round(100 * (1 - weighted_sum / max_penalty)))
 
         # Update scan record
         scan.status = "completed" if total_resources > 0 or len(all_findings) > 0 else "warning"

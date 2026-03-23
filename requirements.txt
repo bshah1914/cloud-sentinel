@@ -31,8 +31,15 @@ google-cloud-storage>=2.10.0
 # google-cloud-sqladmin — optional, install manually if needed
 google-auth>=2.23.0
 
+# Database
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+alembic>=1.13
+redis>=5.0
+
 # Report Export
 reportlab>=4.0
+openpyxl>=3.1
 
 # Utilities
 requests>=2.31.0

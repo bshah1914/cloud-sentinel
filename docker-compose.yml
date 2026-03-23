@@ -19,7 +19,7 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: cloudsentinel-frontend
     ports:
-      - "7001:7001"
+      - "7070:7070"
     depends_on:
       - backend
     restart: unless-stopped

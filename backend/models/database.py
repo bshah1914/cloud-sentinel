@@ -1,30 +1,131 @@
 """
-CloudSentinel Enterprise — Database Models (SQLAlchemy + SQLite)
+CloudSentinel Enterprise — Database Models (SQLAlchemy + PostgreSQL + Redis)
 Covers: Users, Organizations, CloudAccounts, Scans, Findings, AuditLog, Alerts, Schedules
 """
 
 import os
 import uuid
+import json
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, String, Integer, Float, Boolean, DateTime,
     Text, JSON, ForeignKey, Enum as SQLEnum, Index
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import QueuePool, StaticPool
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, "cloudsentinel.db")
-DATABASE_URL = f"sqlite:///{DB_PATH}"
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-    echo=False,
-)
+# Database connection — PostgreSQL if available, SQLite fallback
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+if not DATABASE_URL:
+    # Try PostgreSQL first
+    PG_HOST = os.environ.get("PG_HOST", "localhost")
+    PG_PORT = os.environ.get("PG_PORT", "5432")
+    PG_USER = os.environ.get("PG_USER", "brijesh")
+    PG_PASS = os.environ.get("PG_PASS", "sentinel123")
+    PG_DB = os.environ.get("PG_DB", "cloudsentinel")
+    pg_url = f"postgresql://{PG_USER}:{PG_PASS}@{PG_HOST}:{PG_PORT}/{PG_DB}"
+    try:
+        import psycopg2
+        conn = psycopg2.connect(host=PG_HOST, port=PG_PORT, user=PG_USER, password=PG_PASS, dbname=PG_DB, connect_timeout=3)
+        conn.close()
+        DATABASE_URL = pg_url
+    except Exception:
+        DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'cloudsentinel.db')}"
+
+USE_POSTGRES = "postgresql" in DATABASE_URL
+
+if USE_POSTGRES:
+    engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20, pool_pre_ping=True, echo=False)
+else:
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, poolclass=StaticPool, echo=False)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# Redis connection
+try:
+    import redis
+    REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+    REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+    redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
+    redis_client.ping()
+    REDIS_AVAILABLE = True
+except Exception:
+    redis_client = None
+    REDIS_AVAILABLE = False
+
+
+class RedisCache:
+    """Redis caching layer for dashboard data, scan status, and sessions."""
+
+    @staticmethod
+    def set(key: str, value, ttl: int = 300):
+        """Set cache with TTL in seconds (default 5 min)."""
+        if not REDIS_AVAILABLE:
+            return
+        try:
+            redis_client.setex(f"cs:{key}", ttl, json.dumps(value, default=str))
+        except Exception:
+            pass
+
+    @staticmethod
+    def get(key: str):
+        """Get cached value."""
+        if not REDIS_AVAILABLE:
+            return None
+        try:
+            val = redis_client.get(f"cs:{key}")
+            return json.loads(val) if val else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def delete(key: str):
+        """Delete cache key."""
+        if not REDIS_AVAILABLE:
+            return
+        try:
+            redis_client.delete(f"cs:{key}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def invalidate_account(account_name: str):
+        """Invalidate all caches for an account."""
+        if not REDIS_AVAILABLE:
+            return
+        try:
+            for key in redis_client.scan_iter(f"cs:*{account_name}*"):
+                redis_client.delete(key)
+        except Exception:
+            pass
+
+    @staticmethod
+    def set_scan_status(scan_id: str, status: dict, ttl: int = 60):
+        """Cache scan progress for real-time updates."""
+        if not REDIS_AVAILABLE:
+            return
+        try:
+            redis_client.setex(f"cs:scan:{scan_id}", ttl, json.dumps(status, default=str))
+        except Exception:
+            pass
+
+    @staticmethod
+    def get_scan_status(scan_id: str):
+        """Get cached scan progress."""
+        if not REDIS_AVAILABLE:
+            return None
+        try:
+            val = redis_client.get(f"cs:scan:{scan_id}")
+            return json.loads(val) if val else None
+        except Exception:
+            return None
+
+
+cache = RedisCache()
 
 
 def get_db():
@@ -46,7 +147,7 @@ def utcnow():
 # ─── Organizations ───
 class Organization(Base):
     __tablename__ = "organizations"
-    id = Column(String(12), primary_key=True, default=gen_id)
+    id = Column(String(50), primary_key=True, default=gen_id)
     name = Column(String(200), nullable=False)
     slug = Column(String(100), unique=True, index=True)
     plan = Column(String(50), default="free")  # free, pro, enterprise
@@ -74,13 +175,13 @@ class Organization(Base):
 # ─── Users ───
 class User(Base):
     __tablename__ = "users"
-    id = Column(String(12), primary_key=True, default=gen_id)
+    id = Column(String(50), primary_key=True, default=gen_id)
     username = Column(String(100), unique=True, nullable=False, index=True)
     email = Column(String(200), nullable=True)
     password_hash = Column(String(200), nullable=False)
     role = Column(String(30), default="viewer")  # owner, admin, client_admin, editor, viewer, auditor
     user_type = Column(String(20), default="client")  # owner, client
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=True)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     last_login = Column(DateTime, nullable=True)
     mfa_enabled = Column(Boolean, default=False)
@@ -94,8 +195,8 @@ class User(Base):
 # ─── Cloud Accounts ───
 class CloudAccount(Base):
     __tablename__ = "cloud_accounts"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False, index=True)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     provider = Column(String(20), nullable=False)  # aws, azure, gcp
     account_id = Column(String(100), nullable=True)  # AWS Account ID, Azure Sub ID
@@ -119,9 +220,9 @@ class CloudAccount(Base):
 # ─── Scans ───
 class Scan(Base):
     __tablename__ = "scans"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False, index=True)
-    account_id = Column(String(12), ForeignKey("cloud_accounts.id"), nullable=False, index=True)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False, index=True)
+    account_id = Column(String(50), ForeignKey("cloud_accounts.id"), nullable=False, index=True)
     scan_type = Column(String(30), default="full")  # full, quick, compliance, threat
     status = Column(String(20), default="pending")  # pending, running, completed, failed
     triggered_by = Column(String(100), nullable=True)  # user_id or "scheduler"
@@ -151,9 +252,9 @@ class Scan(Base):
 # ─── Findings ───
 class Finding(Base):
     __tablename__ = "findings"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False, index=True)
-    scan_id = Column(String(12), ForeignKey("scans.id"), nullable=False, index=True)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False, index=True)
+    scan_id = Column(String(50), ForeignKey("scans.id"), nullable=False, index=True)
     account_name = Column(String(200), nullable=True)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
@@ -185,9 +286,9 @@ class Finding(Base):
 # ─── Audit Log ───
 class AuditLog(Base):
     __tablename__ = "audit_logs"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=True, index=True)
-    user_id = Column(String(12), nullable=True)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=True, index=True)
+    user_id = Column(String(50), nullable=True)
     username = Column(String(100), nullable=True)
     action = Column(String(100), nullable=False)  # login, scan.start, scan.complete, export, account.add, etc.
     resource_type = Column(String(50), nullable=True)  # scan, account, user, finding, report
@@ -205,9 +306,9 @@ class AuditLog(Base):
 # ─── Scheduled Scans ───
 class ScanSchedule(Base):
     __tablename__ = "scan_schedules"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
-    account_id = Column(String(12), ForeignKey("cloud_accounts.id"), nullable=False)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
+    account_id = Column(String(50), ForeignKey("cloud_accounts.id"), nullable=False)
     schedule_type = Column(String(20), default="daily")  # hourly, daily, weekly, monthly
     cron_expression = Column(String(50), nullable=True)  # e.g., "0 2 * * *"
     scan_type = Column(String(30), default="full")
@@ -220,8 +321,8 @@ class ScanSchedule(Base):
 # ─── Alert Rules ───
 class AlertRule(Base):
     __tablename__ = "alert_rules"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     condition_type = Column(String(50), nullable=False)  # severity_threshold, score_drop, new_finding, compliance_drift
@@ -236,9 +337,9 @@ class AlertRule(Base):
 # ─── Alert History ───
 class AlertHistory(Base):
     __tablename__ = "alert_history"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
-    rule_id = Column(String(12), ForeignKey("alert_rules.id"), nullable=True)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
+    rule_id = Column(String(50), ForeignKey("alert_rules.id"), nullable=True)
     channel = Column(String(30), nullable=False)  # email, slack, webhook
     title = Column(String(500), nullable=False)
     message = Column(Text, nullable=True)
@@ -249,9 +350,9 @@ class AlertHistory(Base):
 # ─── Remediation Tasks ───
 class RemediationTask(Base):
     __tablename__ = "remediation_tasks"
-    id = Column(String(12), primary_key=True, default=gen_id)
-    org_id = Column(String(12), ForeignKey("organizations.id"), nullable=False)
-    finding_id = Column(String(12), ForeignKey("findings.id"), nullable=False)
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
+    finding_id = Column(String(50), ForeignKey("findings.id"), nullable=False)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     action_type = Column(String(50), nullable=False)  # auto, manual, cli_command
@@ -268,7 +369,10 @@ class RemediationTask(Base):
 def init_db():
     """Create all tables if they don't exist."""
     Base.metadata.create_all(bind=engine)
-    print(f"[DB] Database initialized at {DB_PATH}")
+    db_type = "PostgreSQL" if "postgresql" in DATABASE_URL else "SQLite"
+    redis_status = "connected" if REDIS_AVAILABLE else "unavailable"
+    print(f"[DB] {db_type} initialized — {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
+    print(f"[Cache] Redis {redis_status}")
     return True
 
 

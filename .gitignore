@@ -13,3 +13,5 @@ backend/users.json
 .DS_Store
 venv/
 .venv/
+backend/cloudsentinel.db
+backend/logs/

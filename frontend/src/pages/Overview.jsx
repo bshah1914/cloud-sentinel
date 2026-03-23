@@ -98,10 +98,27 @@ export default function Overview() {
     );
   }
 
-  const providerPie = Object.entries(data.providers).map(([pid, p]) => ({
-    name: p.short_name, value: p.total_resources,
-    color: PROVIDER_META[pid]?.color || '#7c3aed',
-  })).filter((d) => d.value > 0);
+  const SERVICE_COLORS = {
+    instances: '#7c3aed', security_groups: '#8b5cf6', vpcs: '#14b8a6',
+    subnets: '#06b6d4', lambdas: '#10b981', buckets: '#f59e0b',
+    rds: '#ef4444', elbs: '#ec4899', snapshots: '#6366f1',
+    network_interfaces: '#a855f7',
+  };
+  const SERVICE_LABELS = {
+    instances: 'EC2', security_groups: 'Security Groups', vpcs: 'VPCs',
+    subnets: 'Subnets', lambdas: 'Lambda', buckets: 'S3 Buckets',
+    rds: 'RDS', elbs: 'ELBs', snapshots: 'Snapshots',
+    network_interfaces: 'NICs',
+  };
+  const providerPie = data.resource_breakdown
+    ? Object.entries(data.resource_breakdown).map(([k, v]) => ({
+        name: SERVICE_LABELS[k] || k, value: v,
+        color: SERVICE_COLORS[k] || '#7c3aed',
+      })).filter((d) => d.value > 0).sort((a, b) => b.value - a.value)
+    : Object.entries(data.providers).map(([pid, p]) => ({
+        name: p.short_name, value: p.total_resources,
+        color: PROVIDER_META[pid]?.color || '#7c3aed',
+      })).filter((d) => d.value > 0);
 
   const radarData = waf ? WAF_PILLARS.map((p) => ({
     pillar: p.label,

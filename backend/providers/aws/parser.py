@@ -124,18 +124,20 @@ class AWSParser(BaseParser):
                 for db in rds.get("DBInstances", [])
             ]
 
-            # ELBs
+            # ELBs (merge classic + v2 into single load_balancers list)
             elb = _read_json(rd / "elb-describe-load-balancers.json")
-            region_data["load_balancers"] = [
-                {"name": lb.get("LoadBalancerName"), "dns": lb.get("DNSName"), "scheme": lb.get("Scheme")}
+            classic_lbs = [
+                {"name": lb.get("LoadBalancerName"), "dns": lb.get("DNSName"), "scheme": lb.get("Scheme"), "type": "classic"}
                 for lb in elb.get("LoadBalancerDescriptions", [])
             ]
             elbv2 = _read_json(rd / "elbv2-describe-load-balancers.json")
-            region_data["load_balancers_v2"] = [
+            v2_lbs = [
                 {"name": lb.get("LoadBalancerName"), "dns": lb.get("DNSName"),
                  "type": lb.get("Type"), "scheme": lb.get("Scheme")}
                 for lb in elbv2.get("LoadBalancers", [])
             ]
+            region_data["load_balancers"] = classic_lbs + v2_lbs
+            region_data["load_balancers_v2"] = v2_lbs
 
             resources[region] = region_data
 
@@ -254,12 +256,17 @@ class AWSParser(BaseParser):
             r["has_resources"] = any(r.get(k, 0) > 0 for k in ["instances", "security_groups", "vpcs", "lambdas", "rds", "elbs"])
             region_stats[region] = r
 
-        # IAM
+        # IAM (global — prefer us-east-1 where IAM data lives)
         iam_summary = {}
         iam_users = []
         if regions:
-            iam_summary = _read_json(acct_dir / regions[0] / "iam-get-account-summary.json").get("SummaryMap", {})
-            auth = _read_json(acct_dir / regions[0] / "iam-get-account-authorization-details.json")
+            iam_region = "us-east-1" if "us-east-1" in regions else regions[0]
+            for _r in [iam_region] + regions:
+                if (acct_dir / _r / "iam-get-account-authorization-details.json").exists():
+                    iam_region = _r
+                    break
+            iam_summary = _read_json(acct_dir / iam_region / "iam-get-account-summary.json").get("SummaryMap", {})
+            auth = _read_json(acct_dir / iam_region / "iam-get-account-authorization-details.json")
             for u in auth.get("UserDetailList", []):
                 iam_users.append({
                     "name": u.get("UserName"), "arn": u.get("Arn"),
@@ -270,8 +277,8 @@ class AWSParser(BaseParser):
                 })
 
         # Caller identity
-        caller_identity = {}
-        if regions:
+        caller_identity = _read_json(acct_dir / "caller-identity.json")
+        if not caller_identity and regions:
             caller_identity = _read_json(acct_dir / regions[0] / "sts-get-caller-identity.json")
 
         # Security score
