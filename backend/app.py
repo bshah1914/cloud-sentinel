@@ -336,6 +336,100 @@ class UserCreateRequest(BaseModel):
     role: str = "viewer"       # admin, editor, viewer
 
 
+# ── DB Dashboard Helper ──────────────────────────────────────────
+def _dashboard_from_db(account_name: str, provider: str = "aws"):
+    """Build dashboard response from V2 scan results stored in database."""
+    try:
+        from models.database import SessionLocal, CloudAccount, Scan, Finding
+        db = SessionLocal()
+        # Find account by name
+        account = db.query(CloudAccount).filter(CloudAccount.name == account_name).first()
+        if not account:
+            # Try partial match
+            account = db.query(CloudAccount).filter(CloudAccount.name.ilike(f"%{account_name}%")).first()
+        if not account:
+            db.close()
+            raise HTTPException(404, f"No data for account '{account_name}'")
+
+        # Get latest completed scan
+        scan = db.query(Scan).filter(
+            Scan.account_id == account.id, Scan.status == "completed"
+        ).order_by(Scan.completed_at.desc()).first()
+
+        if not scan:
+            db.close()
+            raise HTTPException(404, f"No completed scan for account '{account_name}'")
+
+        # Get findings
+        findings = db.query(Finding).filter(Finding.scan_id == scan.id).all()
+
+        # Build resource totals from scan results
+        results = scan.results or {}
+        totals = {"instances": 0, "security_groups": 0, "vpcs": 0, "subnets": 0,
+                  "lambdas": 0, "buckets": 0, "rds": 0, "elbs": 0, "snapshots": 0,
+                  "network_interfaces": 0}
+        region_matrix = {}
+        for region, data in results.items():
+            if isinstance(data, dict) and "resources" in data:
+                res = data["resources"]
+                totals["instances"] += res.get("ec2_instances", 0)
+                totals["security_groups"] += res.get("security_groups", 0)
+                totals["vpcs"] += res.get("vpcs", 0)
+                totals["subnets"] += res.get("subnets", 0)
+                totals["lambdas"] += res.get("lambda_functions", 0)
+                totals["buckets"] += res.get("s3_buckets", 0)
+                totals["rds"] += res.get("rds_instances", 0)
+                totals["elbs"] += res.get("load_balancers", 0)
+                totals["snapshots"] += res.get("snapshots", 0)
+                region_matrix[region] = {
+                    "instances": res.get("ec2_instances", 0),
+                    "security_groups": res.get("security_groups", 0),
+                    "vpcs": res.get("vpcs", 0),
+                    "subnets": res.get("subnets", 0),
+                    "lambdas": res.get("lambda_functions", 0),
+                    "rds": res.get("rds_instances", 0),
+                    "elbs": res.get("load_balancers", 0),
+                    "snapshots": res.get("snapshots", 0),
+                }
+
+        # Build findings summary
+        sev_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
+        audit_findings = []
+        for f in findings:
+            sev_counts[f.severity] = sev_counts.get(f.severity, 0) + 1
+            audit_findings.append({
+                "title": f.title, "severity": f.severity, "category": f.category,
+                "resource_type": f.resource_type, "resource_id": f.resource_id,
+                "region": f.region, "remediation": f.remediation,
+                "remediation_cli": f.remediation_cli,
+            })
+
+        dashboard = {
+            "account": account_name, "provider": provider,
+            "caller_identity": {"Account": account.account_id or ""},
+            "security_score": scan.security_score,
+            "collection_date": scan.completed_at.isoformat() if scan.completed_at else "",
+            "regions_scanned": scan.regions_scanned,
+            "totals": totals,
+            "region_matrix": region_matrix,
+            "public_ips": [],
+            "public_summary": {"ec2": 0, "rds": 0, "elb": 0, "total": 0},
+            "open_security_groups": sev_counts.get("CRITICAL", 0) + sev_counts.get("HIGH", 0),
+            "iam_summary": {},
+            "iam_users": [],
+            "iam_users_no_mfa": 0,
+            "findings": audit_findings,
+            "findings_summary": sev_counts,
+            "scan_source": "v2_database",
+        }
+        db.close()
+        return dashboard
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error building dashboard: {str(e)}")
+
+
 # ── Helpers ──────────────────────────────────────────────────────
 def _load_config() -> dict:
     cfg_path = CONFIG_FILE if CONFIG_FILE.exists() else CONFIG_DEMO
@@ -782,6 +876,34 @@ def list_accounts(user: dict = Depends(get_current_user)):
                 "default": len(enriched) == 0, "has_data": True, "regions": regions,
             })
 
+    # Also include DB-based accounts (V2)
+    try:
+        from models.database import SessionLocal, CloudAccount, Scan
+        db = SessionLocal()
+        org_id = user.get("org_id")
+        query = db.query(CloudAccount)
+        if org_id and user.get("user_type") == "client":
+            query = query.filter(CloudAccount.org_id == org_id)
+        db_accounts = query.all()
+        for acc in db_accounts:
+            key = f"{acc.provider}:{acc.name}"
+            if key not in seen:
+                latest = db.query(Scan).filter(Scan.account_id == acc.id, Scan.status == "completed").order_by(Scan.completed_at.desc()).first()
+                enriched.append({
+                    "id": acc.account_id or acc.id, "name": acc.name,
+                    "provider": acc.provider, "default": len(enriched) == 0,
+                    "has_data": latest is not None,
+                    "regions": [], "db_account_id": acc.id,
+                    "has_credentials": bool(acc.access_key and acc.secret_key),
+                    "security_score": acc.security_score,
+                    "total_resources": acc.total_resources,
+                    "last_scan": latest.completed_at.isoformat() if latest and latest.completed_at else None,
+                })
+                seen.add(key)
+        db.close()
+    except Exception:
+        pass
+
     return {"accounts": enriched}
 
 
@@ -1021,13 +1143,14 @@ def dashboard_by_provider(provider: str, account_name: str, user: dict = Depends
         raise HTTPException(404, f"Provider '{provider}' not found")
 
     acct_dir = ACCOUNT_DATA_DIR / provider / account_name
-    # Legacy fallback for AWS
     if not acct_dir.exists() and provider == "aws":
         acct_dir = ACCOUNT_DATA_DIR / account_name
-    if not acct_dir.exists():
-        raise HTTPException(404, f"No data for account '{account_name}'")
 
-    return plugin.parser.parse_dashboard(account_name, ACCOUNT_DATA_DIR)
+    if acct_dir.exists():
+        return plugin.parser.parse_dashboard(account_name, ACCOUNT_DATA_DIR)
+
+    # Fallback: build dashboard from V2 scan results in database
+    return _dashboard_from_db(account_name, provider)
 
 
 # Legacy endpoint (backward compat)
@@ -1043,7 +1166,8 @@ def dashboard_legacy(account_name: str, user: dict = Depends(get_current_user)):
     legacy_dir = ACCOUNT_DATA_DIR / account_name
     if legacy_dir.exists():
         return registry.get("aws").parser.parse_dashboard(account_name, ACCOUNT_DATA_DIR)
-    raise HTTPException(404, f"No data for account '{account_name}'")
+    # Fallback: try database
+    return _dashboard_from_db(account_name)
 
 
 # ── UNIFIED MULTI-CLOUD OVERVIEW ────────────────────────────────
@@ -1097,6 +1221,43 @@ def multi_cloud_overview(user: dict = Depends(get_current_user)):
             overview["providers"][pid]["accounts"].append({
                 "name": name, "provider": pid, "error": "Failed to load",
             })
+
+    # Also include DB-based accounts (V2 scans)
+    try:
+        from models.database import SessionLocal, CloudAccount, Scan
+        db = SessionLocal()
+        db_accounts = db.query(CloudAccount).all()
+        file_account_names = {item["name"] for item in _get_account_dirs()}
+        for acc in db_accounts:
+            if acc.name in file_account_names:
+                continue  # Already included from file-based data
+            latest_scan = db.query(Scan).filter(
+                Scan.account_id == acc.id, Scan.status == "completed"
+            ).order_by(Scan.completed_at.desc()).first()
+            if not latest_scan:
+                continue
+            pid = acc.provider or "aws"
+            if pid not in overview["providers"]:
+                overview["providers"][pid] = {
+                    "name": pid.upper(), "short_name": pid.upper(),
+                    "color": "#FF9900", "accounts": [], "total_resources": 0,
+                }
+            acct_info = {
+                "name": acc.name, "provider": pid,
+                "security_score": latest_scan.security_score,
+                "total_resources": latest_scan.resources_found,
+                "total_findings": latest_scan.findings_count,
+                "regions_scanned": latest_scan.regions_scanned,
+            }
+            overview["providers"][pid]["accounts"].append(acct_info)
+            overview["providers"][pid]["total_resources"] += latest_scan.resources_found
+            overview["total_accounts"] += 1
+            overview["total_resources"] += latest_scan.resources_found
+            overview["total_findings"] += latest_scan.findings_count
+            scores.append(latest_scan.security_score)
+        db.close()
+    except Exception:
+        pass
 
     if scores:
         overview["avg_security_score"] = round(sum(scores) / len(scores))
