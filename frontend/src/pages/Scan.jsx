@@ -95,7 +95,7 @@ export default function Scan() {
             try {
               const sRes = await fetch(`${base}/v2/scans/${scanData.scan_id}`, { headers: { Authorization: `Bearer ${token}` } });
               const sData = await sRes.json();
-              setJobs(prev => prev.map(j => j.id === scanData.scan_id ? { ...j, status: sData.status, findings: sData.findings_count, resources: sData.resources_found, score: sData.security_score, progress: sData.status === 'completed' ? 100 : 50 } : j));
+              setJobs(prev => prev.map(j => j.id === scanData.scan_id ? { ...j, status: sData.status, findings: sData.findings_count, resources: sData.resources_found, score: sData.security_score, error: sData.error_message, progress: sData.status === 'completed' ? 100 : 50 } : j));
               if (sData.status !== 'running') {
                 clearInterval(pollV2);
                 if (refreshAccounts) refreshAccounts();
@@ -288,10 +288,21 @@ export default function Scan() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                    {job.resources > 0 && <span className="text-emerald-400">{job.resources} resources</span>}
+                    {job.findings > 0 && <span className="text-orange-400">{job.findings} findings</span>}
+                    {job.score > 0 && <span className="text-primary-light">Score: {job.score}</span>}
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(job.started).toLocaleString()}</span>
                     <StatusBadge status={job.status} />
                   </div>
                 </div>
+                {job.status === 'failed' && job.error && (
+                  <div className="mt-2 p-2.5 bg-red-500/8 border border-red-500/15 rounded-xl text-xs text-red-400 flex items-start gap-2">
+                    <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-medium">Scan failed:</span> {job.error}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             ))}
           </div>

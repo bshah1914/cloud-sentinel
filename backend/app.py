@@ -515,6 +515,24 @@ def admin_list_clients(user: dict = Depends(require_owner)):
 @app.post("/api/admin/clients")
 def admin_create_client(req: OrgCreateRequest, user: dict = Depends(require_owner)):
     org = tenant_mgr.create_organization(req.name, req.contact_email, req.plan)
+    # Also create in database
+    try:
+        from models.database import SessionLocal, Organization, gen_id
+        db = SessionLocal()
+        org_id = org.get("id", org.get("org_id", gen_id()))
+        existing = db.query(Organization).filter(Organization.id == org_id).first()
+        if not existing:
+            db_org = Organization(
+                id=org_id, name=req.name,
+                slug=req.name.lower().replace(" ", "-")[:50],
+                plan=req.plan or "free",
+                alert_email=req.contact_email,
+            )
+            db.add(db_org)
+            db.commit()
+        db.close()
+    except Exception:
+        pass
     return org
 
 
@@ -570,6 +588,22 @@ def admin_create_client_user(org_id: str, req: ClientUserCreateRequest, user: di
         raise HTTPException(404, "Organization not found")
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(400, result["error"])
+    # Also create in database
+    try:
+        from models.database import SessionLocal, User as DBUser, gen_id
+        db = SessionLocal()
+        existing = db.query(DBUser).filter(DBUser.username == req.username).first()
+        if not existing:
+            db_user = DBUser(
+                id=gen_id(), username=req.username, email=req.email,
+                password_hash=pwd_context.hash(req.password),
+                role=req.role or "client_admin", user_type="client", org_id=org_id,
+            )
+            db.add(db_user)
+            db.commit()
+        db.close()
+    except Exception:
+        pass
     return result
 
 
