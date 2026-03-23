@@ -1093,7 +1093,9 @@ def get_resources_legacy(account_name: str, user: dict = Depends(get_current_use
     legacy_dir = ACCOUNT_DATA_DIR / account_name
     if legacy_dir.exists():
         return registry.get("aws").parser.parse_resources(account_name, ACCOUNT_DATA_DIR)
-    raise HTTPException(404, f"No data for account '{account_name}'")
+    # DB fallback
+    dash = _dashboard_from_db(account_name)
+    return {"account": account_name, "regions": dash.get("region_matrix", {})}
 
 
 @app.get("/api/iam/{account_name}")
@@ -1105,7 +1107,14 @@ def get_iam_legacy(account_name: str, user: dict = Depends(get_current_user)):
         acct_dir = ACCOUNT_DATA_DIR / account_name
     regions = _get_regions(acct_dir)
     if not regions:
-        raise HTTPException(404, "No data found")
+        # DB fallback — return scan findings related to IAM
+        try:
+            dash = _dashboard_from_db(account_name)
+            iam_findings = [f for f in dash.get("findings", []) if f.get("category") in ("iam", "identity")]
+            return {"account": account_name, "summary": {}, "users": [], "roles": [], "policies": [],
+                    "findings": iam_findings}
+        except Exception:
+            return {"account": account_name, "summary": {}, "users": [], "roles": [], "policies": []}
     region_dir = acct_dir / regions[0]
     auth = _read_json(region_dir / "iam-get-account-authorization-details.json")
     summary = _read_json(region_dir / "iam-get-account-summary.json")
@@ -1133,6 +1142,18 @@ def get_security_groups_legacy(account_name: str, user: dict = Depends(get_curre
     if not acct_dir.exists():
         acct_dir = ACCOUNT_DATA_DIR / account_name
     regions = _get_regions(acct_dir)
+    if not regions:
+        # DB fallback
+        try:
+            dash = _dashboard_from_db(account_name)
+            sg_findings = [f for f in dash.get("findings", []) if f.get("resource_type") in ("SecurityGroup", "security_group")]
+            return {"account": account_name, "risky_groups": [
+                {"region": f.get("region",""), "group_id": f.get("resource_id",""), "group_name": f.get("title",""),
+                 "vpc_id": "", "open_rules": [], "severity": f.get("severity","HIGH")}
+                for f in sg_findings
+            ]}
+        except Exception:
+            return {"account": account_name, "risky_groups": []}
     results = []
     for region in regions:
         sgs = _read_json(acct_dir / region / "ec2-describe-security-groups.json")
@@ -1195,7 +1216,16 @@ def run_audit_legacy(account_name: str, user: dict = Depends(get_current_user)):
         return {"account": account_name, "provider": "aws",
                 "total": len(findings), "findings": findings,
                 "summary": {s: severity_counts.get(s, 0) for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]}}
-    raise HTTPException(404, f"No data for account '{account_name}'")
+    # DB fallback — use findings from V2 scan
+    try:
+        dash = _dashboard_from_db(account_name)
+        findings = dash.get("findings", [])
+        sev = dash.get("findings_summary", {})
+        return {"account": account_name, "provider": "aws",
+                "total": len(findings), "findings": findings,
+                "summary": {s: sev.get(s, 0) for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]}}
+    except Exception:
+        raise HTTPException(404, f"No data for account '{account_name}'")
 
 
 # ── REPORT EXPORT ────────────────────────────────────────────────
