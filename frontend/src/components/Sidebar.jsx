@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, ShieldCheck, Server, KeyRound,
   ShieldAlert, ScanLine, Cloud, ChevronLeft, ChevronRight,
   UserCog, Layers, Sparkles, FileText, ClipboardCheck, BookOpen, Crosshair, Crown, Headphones,
-  Settings, Building2, Eye, ScrollText, Bell, LayoutGrid, Palette, Brain
+  Settings, Building2, Eye, ScrollText, Bell, LayoutGrid, Palette, Brain, Monitor
 } from 'lucide-react';
 
 const ownerNav = [
@@ -31,8 +31,6 @@ const ownerNav = [
   { to: '/pricing', icon: Crown, label: 'Plans', section: 'platform' },
   { to: '/users', icon: UserCog, label: 'Users', section: 'platform' },
   { to: '/ai-dashboard', icon: Brain, label: 'AI Dashboard', section: 'dashboards' },
-  { to: '/custom-dashboard', icon: LayoutGrid, label: 'Custom Dashboard', section: 'dashboards' },
-  { to: '/dashboard-manager', icon: Sparkles, label: 'Dashboard Manager', section: 'dashboards' },
   { to: '/branding', icon: Palette, label: 'Branding', section: 'platform' },
 ];
 

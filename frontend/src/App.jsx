@@ -28,6 +28,7 @@ import CustomDashboard from './pages/CustomDashboard';
 import BrandingSettings from './pages/BrandingSettings';
 import DashboardManager from './pages/DashboardManager';
 import AiDashboard from './pages/AiDashboard';
+import KioskMode from './pages/KioskMode';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -118,6 +119,8 @@ export default function App() {
         <BrowserRouter basename={(() => { const p = window.location.pathname; const m = p.match(/^(\/[^/]+)\//); return (m && m[1] !== '/api') ? m[1] : '/'; })()}>
           <Routes>
             <Route path="/login" element={<LoginRoute />} />
+            <Route path="/kiosk" element={<KioskMode />} />
+            <Route path="/kiosk/:id" element={<KioskMode />} />
             <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>
         </BrowserRouter>
