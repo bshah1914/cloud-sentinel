@@ -157,6 +157,9 @@ class Organization(Base):
     max_users = Column(Integer, default=3)
     branding_logo = Column(Text, nullable=True)
     branding_color = Column(String(20), default="#7c3aed")
+    branding_colors = Column(JSON, nullable=True)
+    branding_product_name = Column(String(200), nullable=True)
+    default_dashboards = Column(JSON, nullable=True)
     webhook_url = Column(Text, nullable=True)
     webhook_events = Column(JSON, default=list)
     slack_webhook = Column(Text, nullable=True)
@@ -187,9 +190,54 @@ class User(Base):
     mfa_enabled = Column(Boolean, default=False)
     mfa_secret = Column(String(100), nullable=True)
     api_key = Column(String(64), nullable=True, unique=True, index=True)
+    theme_id = Column(String(50), default="dark")
+    custom_theme = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=utcnow)
 
     organization = relationship("Organization", back_populates="users")
+
+
+# ─── Dashboard Layouts ───
+class DashboardLayout(Base):
+    __tablename__ = "dashboard_layouts"
+    id = Column(String(50), primary_key=True, default=gen_id)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=True, index=True)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=True)
+    name = Column(String(200), nullable=False, default="My Dashboard")
+    is_default = Column(Boolean, default=False)
+    is_template = Column(Boolean, default=False)
+    template_type = Column(String(50), nullable=True)
+    layout = Column(JSON, nullable=False, default=list)
+    shared_with = Column(JSON, default=list)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+# ─── Scheduled Exports ───
+class ScheduledExport(Base):
+    __tablename__ = "scheduled_exports"
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=False)
+    dashboard_id = Column(String(50), ForeignKey("dashboard_layouts.id"), nullable=True)
+    schedule = Column(String(50), default="daily")
+    format = Column(String(20), default="pdf")
+    recipients = Column(JSON, default=list)
+    is_active = Column(Boolean, default=True)
+    last_sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
+# ─── Embed Tokens ───
+class EmbedToken(Base):
+    __tablename__ = "embed_tokens"
+    id = Column(String(50), primary_key=True, default=gen_id)
+    org_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
+    dashboard_id = Column(String(50), ForeignKey("dashboard_layouts.id"), nullable=False)
+    token = Column(String(100), unique=True, index=True)
+    expires_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ─── Cloud Accounts ───

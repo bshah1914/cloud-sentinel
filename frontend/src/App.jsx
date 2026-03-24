@@ -24,6 +24,10 @@ import MyAccount from './pages/MyAccount';
 import Executive from './pages/Executive';
 import AuditLog from './pages/AuditLog';
 import AlertRules from './pages/AlertRules';
+import CustomDashboard from './pages/CustomDashboard';
+import BrandingSettings from './pages/BrandingSettings';
+import DashboardManager from './pages/DashboardManager';
+import AiDashboard from './pages/AiDashboard';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -66,6 +70,11 @@ function ProtectedRoutes() {
             <Route path="/executive" element={<Executive />} />
             <Route path="/audit-log" element={<AuditLog />} />
             <Route path="/alert-rules" element={<AlertRules />} />
+            <Route path="/custom-dashboard" element={<CustomDashboard />} />
+            <Route path="/custom-dashboard/:id" element={<CustomDashboard />} />
+            <Route path="/dashboard-manager" element={<DashboardManager />} />
+            <Route path="/branding" element={<BrandingSettings />} />
+            <Route path="/ai-dashboard" element={<AiDashboard />} />
           </>
         )}
 

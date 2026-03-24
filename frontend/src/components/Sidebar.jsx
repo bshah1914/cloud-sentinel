@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, ShieldCheck, Server, KeyRound,
   ShieldAlert, ScanLine, Cloud, ChevronLeft, ChevronRight,
   UserCog, Layers, Sparkles, FileText, ClipboardCheck, BookOpen, Crosshair, Crown, Headphones,
-  Settings, Building2, Eye, ScrollText, Bell
+  Settings, Building2, Eye, ScrollText, Bell, LayoutGrid, Palette, Brain
 } from 'lucide-react';
 
 const ownerNav = [
@@ -30,6 +30,10 @@ const ownerNav = [
   { to: '/support', icon: Headphones, label: 'Support', section: 'platform' },
   { to: '/pricing', icon: Crown, label: 'Plans', section: 'platform' },
   { to: '/users', icon: UserCog, label: 'Users', section: 'platform' },
+  { to: '/ai-dashboard', icon: Brain, label: 'AI Dashboard', section: 'dashboards' },
+  { to: '/custom-dashboard', icon: LayoutGrid, label: 'Custom Dashboard', section: 'dashboards' },
+  { to: '/dashboard-manager', icon: Sparkles, label: 'Dashboard Manager', section: 'dashboards' },
+  { to: '/branding', icon: Palette, label: 'Branding', section: 'platform' },
 ];
 
 const clientNav = [
@@ -50,6 +54,7 @@ const SECTIONS = {
   security: 'Security',
   compliance: 'Compliance',
   report: 'Reports',
+  dashboards: 'Custom Dashboards',
   platform: 'Platform',
   account: 'Account',
 };

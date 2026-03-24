@@ -510,6 +510,104 @@ def get_me(user: dict = Depends(get_current_user)):
     return result
 
 
+# ── Theme Presets ────────────────────────────────────────────────
+THEME_PRESETS = [
+    {"id": "dark", "name": "Dark", "category": "dark", "description": "Default dark theme with violet accents"},
+    {"id": "light", "name": "Light", "category": "light", "description": "Clean light theme for bright environments"},
+    {"id": "midnight-blue", "name": "Midnight Blue", "category": "dark", "description": "Deep navy corporate theme"},
+    {"id": "ocean", "name": "Ocean", "category": "dark", "description": "Teal and green aquatic theme"},
+    {"id": "sunset", "name": "Sunset", "category": "dark", "description": "Warm orange and amber tones"},
+    {"id": "corporate", "name": "Corporate", "category": "light", "description": "Professional light theme with slate accents"},
+    {"id": "minimal", "name": "Minimal", "category": "dark", "description": "Clean monochrome with subtle accents"},
+    {"id": "high-contrast", "name": "High Contrast", "category": "dark", "description": "Maximum readability with strong contrasts"},
+]
+
+@app.get("/api/themes")
+def list_themes():
+    return {"themes": THEME_PRESETS}
+
+class UserPreferencesUpdate(BaseModel):
+    theme_id: Optional[str] = None
+    custom_theme: Optional[dict] = None
+
+@app.get("/api/user/preferences")
+def get_user_preferences(user: dict = Depends(get_current_user)):
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        db_user = db.query(DBUser).filter(DBUser.username == user["username"]).first()
+        result = {"theme_id": "dark", "custom_theme": None}
+        if db_user:
+            result["theme_id"] = getattr(db_user, "theme_id", "dark") or "dark"
+            result["custom_theme"] = getattr(db_user, "custom_theme", None)
+        db.close()
+        return result
+    except Exception:
+        return {"theme_id": "dark", "custom_theme": None}
+
+@app.put("/api/user/preferences")
+def update_user_preferences(prefs: UserPreferencesUpdate, user: dict = Depends(get_current_user)):
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        db_user = db.query(DBUser).filter(DBUser.username == user["username"]).first()
+        if db_user:
+            if prefs.theme_id is not None:
+                db_user.theme_id = prefs.theme_id
+            if prefs.custom_theme is not None:
+                db_user.custom_theme = prefs.custom_theme
+            db.commit()
+        db.close()
+        return {"status": "ok"}
+    except Exception:
+        return {"status": "ok"}
+
+class OrgBrandingUpdate(BaseModel):
+    branding_colors: Optional[dict] = None
+    branding_product_name: Optional[str] = None
+    branding_logo: Optional[str] = None
+
+@app.get("/api/org/branding")
+def get_org_branding(user: dict = Depends(get_current_user)):
+    try:
+        from models.database import SessionLocal, Organization
+        db = SessionLocal()
+        org_id = user.get("org_id", "cloudsentinel")
+        org = db.query(Organization).filter(Organization.id == org_id).first()
+        result = {"logo": None, "product_name": "CloudSentinel", "primary_color": "#7c3aed", "colors": None}
+        if org:
+            result["logo"] = org.branding_logo
+            result["product_name"] = getattr(org, "branding_product_name", None) or "CloudSentinel"
+            result["primary_color"] = org.branding_color or "#7c3aed"
+            result["colors"] = getattr(org, "branding_colors", None)
+        db.close()
+        return result
+    except Exception:
+        return {"logo": None, "product_name": "CloudSentinel", "primary_color": "#7c3aed", "colors": None}
+
+@app.put("/api/org/branding")
+def update_org_branding(branding: OrgBrandingUpdate, user: dict = Depends(get_current_user)):
+    if user.get("role") not in ("admin", "editor"):
+        raise HTTPException(403, "Admin access required")
+    try:
+        from models.database import SessionLocal, Organization
+        db = SessionLocal()
+        org_id = user.get("org_id", "cloudsentinel")
+        org = db.query(Organization).filter(Organization.id == org_id).first()
+        if org:
+            if branding.branding_colors is not None:
+                org.branding_colors = branding.branding_colors
+            if branding.branding_product_name is not None:
+                org.branding_product_name = branding.branding_product_name
+            if branding.branding_logo is not None:
+                org.branding_logo = branding.branding_logo
+            db.commit()
+        db.close()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 # ── Helper: Require Owner ────────────────────────────────────────
 def require_owner(user: dict = Depends(get_current_user)):
     if user.get("role") not in ("admin", "editor"):
@@ -802,6 +900,150 @@ def remove_cidr(cidr: str, user: dict = Depends(get_current_user)):
     config.get("cidrs", {}).pop(cidr, None)
     _save_config(config)
     return {"status": "ok"}
+
+
+# ── Dashboard Layout CRUD ────────────────────────────────────────
+class DashboardCreateRequest(BaseModel):
+    name: str = "My Dashboard"
+    layout: list = []
+
+class DashboardUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    layout: Optional[list] = None
+
+@app.get("/api/dashboards")
+def list_dashboards(user: dict = Depends(get_current_user)):
+    from models.database import SessionLocal, DashboardLayout
+    db = SessionLocal()
+    try:
+        dashboards = db.query(DashboardLayout).filter(
+            (DashboardLayout.user_id == user.get("id")) |
+            (DashboardLayout.is_template == True)
+        ).all()
+        return {"dashboards": [
+            {"id": d.id, "name": d.name, "is_default": d.is_default, "is_template": d.is_template,
+             "template_type": d.template_type, "layout": d.layout, "created_at": d.created_at.isoformat() if d.created_at else ""}
+            for d in dashboards
+        ]}
+    finally:
+        db.close()
+
+@app.post("/api/dashboards")
+def create_dashboard(req: DashboardCreateRequest, user: dict = Depends(get_current_user)):
+    from models.database import SessionLocal, DashboardLayout, gen_id
+    db = SessionLocal()
+    try:
+        dash = DashboardLayout(
+            id=gen_id(), user_id=user.get("id"), org_id=user.get("org_id", "cloudsentinel"),
+            name=req.name, layout=req.layout,
+        )
+        db.add(dash)
+        db.commit()
+        return {"id": dash.id, "name": dash.name, "status": "created"}
+    finally:
+        db.close()
+
+@app.get("/api/dashboards/{dashboard_id}")
+def get_dashboard_layout(dashboard_id: str, user: dict = Depends(get_current_user)):
+    from models.database import SessionLocal, DashboardLayout
+    db = SessionLocal()
+    try:
+        dash = db.query(DashboardLayout).filter(DashboardLayout.id == dashboard_id).first()
+        if not dash:
+            raise HTTPException(404, "Dashboard not found")
+        return {"id": dash.id, "name": dash.name, "layout": dash.layout,
+                "is_template": dash.is_template, "template_type": dash.template_type}
+    finally:
+        db.close()
+
+@app.put("/api/dashboards/{dashboard_id}")
+def update_dashboard_layout(dashboard_id: str, req: DashboardUpdateRequest, user: dict = Depends(get_current_user)):
+    from models.database import SessionLocal, DashboardLayout
+    db = SessionLocal()
+    try:
+        dash = db.query(DashboardLayout).filter(DashboardLayout.id == dashboard_id).first()
+        if not dash:
+            raise HTTPException(404, "Dashboard not found")
+        if req.name is not None:
+            dash.name = req.name
+        if req.layout is not None:
+            dash.layout = req.layout
+        db.commit()
+        return {"status": "ok"}
+    finally:
+        db.close()
+
+@app.delete("/api/dashboards/{dashboard_id}")
+def delete_dashboard(dashboard_id: str, user: dict = Depends(get_current_user)):
+    from models.database import SessionLocal, DashboardLayout
+    db = SessionLocal()
+    try:
+        dash = db.query(DashboardLayout).filter(DashboardLayout.id == dashboard_id).first()
+        if dash:
+            db.delete(dash)
+            db.commit()
+        return {"status": "ok"}
+    finally:
+        db.close()
+
+@app.post("/api/dashboards/{dashboard_id}/clone")
+def clone_dashboard(dashboard_id: str, user: dict = Depends(get_current_user)):
+    from models.database import SessionLocal, DashboardLayout, gen_id
+    db = SessionLocal()
+    try:
+        src = db.query(DashboardLayout).filter(DashboardLayout.id == dashboard_id).first()
+        if not src:
+            raise HTTPException(404, "Dashboard not found")
+        clone = DashboardLayout(
+            id=gen_id(), user_id=user.get("id"), org_id=user.get("org_id", "cloudsentinel"),
+            name=f"{src.name} (Copy)", layout=src.layout,
+        )
+        db.add(clone)
+        db.commit()
+        return {"id": clone.id, "name": clone.name, "status": "cloned"}
+    finally:
+        db.close()
+
+@app.get("/api/dashboards/templates")
+def list_dashboard_templates():
+    from models.database import SessionLocal, DashboardLayout
+    db = SessionLocal()
+    try:
+        templates = db.query(DashboardLayout).filter(DashboardLayout.is_template == True).all()
+        return {"templates": [
+            {"id": d.id, "name": d.name, "template_type": d.template_type, "layout": d.layout}
+            for d in templates
+        ]}
+    finally:
+        db.close()
+
+@app.get("/api/widgets/registry")
+def get_widget_registry():
+    return {"widgets": [
+        {"id": "security-score", "name": "Security Score", "category": "Security"},
+        {"id": "severity-pie", "name": "Severity Distribution", "category": "Security"},
+        {"id": "findings-radar", "name": "Security Posture", "category": "Security"},
+        {"id": "top-findings", "name": "Top Findings", "category": "Security"},
+        {"id": "risk-gauge", "name": "Risk Gauge", "category": "Security"},
+        {"id": "resource-stats", "name": "Resource Stats", "category": "Resources"},
+        {"id": "resource-bar", "name": "Resources by Region", "category": "Resources"},
+        {"id": "public-ips", "name": "Public IPs", "category": "Resources"},
+        {"id": "multi-cloud", "name": "Cloud Providers", "category": "Overview"},
+        {"id": "waf-radar", "name": "WAF Radar", "category": "Overview"},
+        {"id": "account-list", "name": "Account List", "category": "Overview"},
+        {"id": "big-stat", "name": "KPI Card", "category": "Executive"},
+        {"id": "trend-chart", "name": "Score Trend", "category": "Executive"},
+        {"id": "recent-scans", "name": "Recent Scans", "category": "Operations"},
+        {"id": "quick-scan", "name": "Quick Scan", "category": "Operations"},
+        {"id": "audit-log", "name": "Audit Log", "category": "Operations"},
+        {"id": "compliance-card", "name": "Compliance", "category": "Compliance"},
+        {"id": "threat-feed", "name": "Threat Feed", "category": "Threats"},
+        {"id": "findings-trend", "name": "Findings Trend", "category": "Threats"},
+        {"id": "network-topology", "name": "Network Topology", "category": "Advanced"},
+        {"id": "region-map", "name": "Region Map", "category": "Advanced"},
+        {"id": "score-timeline", "name": "Score Timeline", "category": "Advanced"},
+        {"id": "scan-compare", "name": "Scan Comparison", "category": "Advanced"},
+    ]}
 
 
 # ── VPC CIDRs (from scan data) ─────────────────────────────────

@@ -1,17 +1,12 @@
 import { motion } from 'framer-motion';
+import useOrgBranding from '../hooks/useOrgBranding';
 
 /**
- * CloudSentinel Logo — Animated SVG
- * Shield + Cloud + Eye (sentinel) with "Secure Your Cloud" tagline
- *
- * Props:
- *   size: 'sm' | 'md' | 'lg' | 'xl' (default: 'md')
- *   showText: boolean (default: true)
- *   showTagline: boolean (default: false)
- *   animate: boolean (default: true)
- *   collapsed: boolean (default: false) — for sidebar
+ * CloudSentinel Logo — Animated SVG with White-Label Support
+ * If org has custom logo/product name, renders those instead.
  */
 export default function Logo({ size = 'md', showText = true, showTagline = false, animate = true, collapsed = false }) {
+  const { logo, productName } = useOrgBranding();
   const sizes = {
     sm: { icon: 28, text: 'text-sm', tag: 'text-[8px]', gap: 'gap-2' },
     md: { icon: 36, text: 'text-base', tag: 'text-[9px]', gap: 'gap-2.5' },
@@ -130,17 +125,23 @@ export default function Logo({ size = 'md', showText = true, showTagline = false
         </svg>
       </div>
 
-      {/* Text */}
+      {/* Text — white-label or default */}
       {showText && !collapsed && (
         <div className="flex flex-col">
-          <span className={`${s.text} font-black tracking-tight leading-tight`}>
-            <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-              Cloud
+          {productName && productName !== 'CloudSentinel' ? (
+            <span className={`${s.text} font-black tracking-tight leading-tight bg-gradient-to-r from-primary-light to-accent bg-clip-text text-transparent`}>
+              {productName}
             </span>
-            <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-              Sentinel
+          ) : (
+            <span className={`${s.text} font-black tracking-tight leading-tight`}>
+              <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                Cloud
+              </span>
+              <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+                Sentinel
+              </span>
             </span>
-          </span>
+          )}
           {showTagline && (
             <span className={`${s.tag} text-text-muted/60 uppercase tracking-[3px] mt-0.5 font-medium`}>
               Secure Your Cloud

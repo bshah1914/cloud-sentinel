@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, Wifi, WifiOff, LogOut, ChevronDown, Sun, Moon, Search, Command } from 'lucide-react';
+import { Clock, Wifi, WifiOff, LogOut, ChevronDown, Sun, Moon, Search, Command, Palette } from 'lucide-react';
+import ThemePreviewModal from './ThemePreviewModal';
 import { getHealth } from '../api';
 import { useAuth } from '../auth';
 import { useTheme } from '../theme';
@@ -31,6 +32,7 @@ export default function Topbar({ account, provider, onAccountChange, accounts })
   const location = useLocation();
   const [health, setHealth] = useState(null);
   const [time, setTime] = useState(new Date());
+  const [showThemeModal, setShowThemeModal] = useState(false);
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => setHealth(null));
@@ -117,6 +119,12 @@ export default function Topbar({ account, provider, onAccountChange, accounts })
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </motion.div>
         </button>
+        <button onClick={() => setShowThemeModal(true)}
+          className="p-2 rounded-lg text-text-muted hover:text-text hover:bg-white/[0.04] transition-all"
+          title="Theme Settings">
+          <Palette className="w-4 h-4" />
+        </button>
+        <ThemePreviewModal isOpen={showThemeModal} onClose={() => setShowThemeModal(false)} />
 
         <NotificationCenter account={account} />
 

@@ -245,7 +245,14 @@ def _scan_region(session, region, raw_data=None):
                 users = iam.list_users().get("Users", [])
                 if raw_data is not None:
                     try:
-                        auth_details = iam.get_account_authorization_details()
+                        # Paginate to get ALL users, roles, groups, policies
+                        paginator = iam.get_paginator('get_account_authorization_details')
+                        auth_details = {"UserDetailList": [], "RoleDetailList": [], "GroupDetailList": [], "Policies": []}
+                        for page in paginator.paginate():
+                            auth_details["UserDetailList"].extend(page.get("UserDetailList", []))
+                            auth_details["RoleDetailList"].extend(page.get("RoleDetailList", []))
+                            auth_details["GroupDetailList"].extend(page.get("GroupDetailList", []))
+                            auth_details["Policies"].extend(page.get("Policies", []))
                         raw_data[region]["iam-get-account-authorization-details"] = auth_details
                     except ClientError:
                         pass
