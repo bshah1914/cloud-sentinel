@@ -28,6 +28,7 @@ import CustomDashboard from './pages/CustomDashboard';
 import BrandingSettings from './pages/BrandingSettings';
 import DashboardManager from './pages/DashboardManager';
 import AiDashboard from './pages/AiDashboard';
+import Remediation from './pages/Remediation';
 import KioskMode from './pages/KioskMode';
 import Loader from './components/Loader';
 
@@ -76,6 +77,7 @@ function ProtectedRoutes() {
             <Route path="/dashboard-manager" element={<DashboardManager />} />
             <Route path="/branding" element={<BrandingSettings />} />
             <Route path="/ai-dashboard" element={<AiDashboard />} />
+            <Route path="/remediation" element={<Remediation />} />
           </>
         )}
 

@@ -414,9 +414,33 @@ class RemediationTask(Base):
 
 
 # ─── Create all tables ───
+def _migrate_columns():
+    """Add new columns to existing tables if missing (safe for repeated runs)."""
+    if "sqlite" not in DATABASE_URL:
+        return
+    import sqlite3
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    conn = sqlite3.connect(db_path)
+    migrations = [
+        ("users", "theme_id TEXT DEFAULT 'dark'"),
+        ("users", "custom_theme TEXT"),
+        ("organizations", "branding_colors TEXT"),
+        ("organizations", "branding_product_name TEXT"),
+        ("organizations", "default_dashboards TEXT"),
+    ]
+    for table, col_def in migrations:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
+        except Exception:
+            pass
+    conn.commit()
+    conn.close()
+
+
 def init_db():
     """Create all tables if they don't exist."""
     Base.metadata.create_all(bind=engine)
+    _migrate_columns()
     db_type = "PostgreSQL" if "postgresql" in DATABASE_URL else "SQLite"
     redis_status = "connected" if REDIS_AVAILABLE else "unavailable"
     print(f"[DB] {db_type} initialized — {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")

@@ -17,7 +17,11 @@ from services.scanner import start_scan_async
 from services.audit import log_action, get_audit_logs
 from services.alerts import evaluate_alerts, create_default_alert_rules
 from services.scheduler import create_schedule, list_schedules
-from services.remediation import get_remediation_options, execute_remediation, get_remediation_tasks
+from services.remediation import (
+    get_remediation_options, request_remediation, approve_remediation,
+    reject_remediation, execute_remediation, get_remediation_tasks,
+    get_pending_approvals_count
+)
 
 router = APIRouter(prefix="/api/v2", tags=["Enterprise"])
 
@@ -51,6 +55,9 @@ class CloudAccountRequest(BaseModel):
 class RemediateRequest(BaseModel):
     finding_id: str
     action_type: str = "manual"
+
+class RejectRequest(BaseModel):
+    reason: str = ""
 
 
 def register_enterprise_routes(app, get_current_user):
@@ -311,13 +318,40 @@ def register_enterprise_routes(app, get_current_user):
         return get_remediation_options(finding_id)
 
     @app.post("/api/v2/remediation")
-    async def run_remediation(req: RemediateRequest, user: dict = Depends(get_current_user)):
-        return execute_remediation(req.finding_id, req.action_type, user.get("user_id"))
+    async def submit_remediation(req: RemediateRequest, user: dict = Depends(get_current_user)):
+        """Request remediation — requires owner approval before execution."""
+        return request_remediation(req.finding_id, req.action_type, user.get("sub"))
+
+    @app.post("/api/v2/remediation/{task_id}/approve")
+    async def approve_task(task_id: str, user: dict = Depends(get_current_user)):
+        """Owner approves a remediation task."""
+        if user.get("user_type") != "owner":
+            raise HTTPException(403, "Only owners can approve remediation tasks")
+        return approve_remediation(task_id, user.get("sub"))
+
+    @app.post("/api/v2/remediation/{task_id}/reject")
+    async def reject_task(task_id: str, req: RejectRequest, user: dict = Depends(get_current_user)):
+        """Owner rejects a remediation task."""
+        if user.get("user_type") != "owner":
+            raise HTTPException(403, "Only owners can reject remediation tasks")
+        return reject_remediation(task_id, user.get("sub"), req.reason)
+
+    @app.post("/api/v2/remediation/{task_id}/execute")
+    async def execute_task(task_id: str, user: dict = Depends(get_current_user)):
+        """Execute an approved remediation task. Must be approved by owner first."""
+        if user.get("user_type") != "owner":
+            raise HTTPException(403, "Only owners can execute remediation tasks")
+        return execute_remediation(task_id, user.get("sub"))
 
     @app.get("/api/v2/remediation-tasks")
     async def list_remediation_tasks(user: dict = Depends(get_current_user), status: str = None):
         org_id = user.get("org_id")
         return {"tasks": get_remediation_tasks(org_id, status)}
+
+    @app.get("/api/v2/remediation-tasks/pending-count")
+    async def pending_count(user: dict = Depends(get_current_user)):
+        org_id = user.get("org_id")
+        return {"count": get_pending_approvals_count(org_id)}
 
     # ─── EXECUTIVE DASHBOARD ───
     @app.get("/api/v2/executive-dashboard")

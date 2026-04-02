@@ -6,9 +6,9 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Filter, ChevronRight,
-  AlertTriangle, Search, Download, FileText, Zap, Target
+  AlertTriangle, Search, Download, FileText, Zap, Target, Wrench, Loader2, CheckCircle2
 } from 'lucide-react';
-import { runAudit, exportAudit } from '../api';
+import { runAudit, exportAudit, getBase } from '../api';
 import { useToast } from '../components/Toast';
 import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
@@ -34,7 +34,7 @@ const SEV_ICONS = {
 const SEV_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
 
 export default function Audit() {
-  const { account } = useOutletContext();
+  const { account, token } = useOutletContext();
   const { addToast } = useToast();
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -42,6 +42,36 @@ export default function Audit() {
   const [search, setSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState(new Set(SEV_ORDER));
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [requestingFix, setRequestingFix] = useState(null);
+  const [requestedFixes, setRequestedFixes] = useState(new Set());
+
+  const handleRequestFix = async (finding) => {
+    setRequestingFix(finding.title);
+    try {
+      const res = await fetch(getBase() + '/api/remediation/request', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: finding.title,
+          severity: finding.severity,
+          category: finding.group || 'security',
+          region: finding.region || '',
+          resource: finding.resource || '',
+          description: finding.description || finding.issue || '',
+          remediation: finding.remediation || finding.details || '',
+          account_name: account,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        addToast(data.error, 'warning');
+      } else {
+        addToast('Fix requested — awaiting owner approval', 'success');
+        setRequestedFixes(prev => new Set([...prev, finding.title]));
+      }
+    } catch { addToast('Failed to request fix', 'error'); }
+    setRequestingFix(null);
+  };
 
   const handleRunAudit = async () => {
     if (!account) return;
@@ -302,6 +332,22 @@ export default function Audit() {
                               {typeof f.details === 'string' ? f.details : JSON.stringify(f.details, null, 2)}
                             </pre>
                           )}
+                          <div className="flex justify-end pt-2">
+                            {requestedFixes.has(f.title) ? (
+                              <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Fix requested — pending approval
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRequestFix(f); }}
+                                disabled={requestingFix === f.title}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-xs font-medium transition-colors disabled:opacity-50"
+                              >
+                                {requestingFix === f.title ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wrench className="w-3.5 h-3.5" />}
+                                Request Fix
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </motion.div>
                     )}

@@ -15,3 +15,4 @@ venv/
 .venv/
 backend/cloudsentinel.db
 backend/logs/
+.claude/

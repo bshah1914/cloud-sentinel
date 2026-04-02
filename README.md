@@ -177,22 +177,41 @@ The IAM user/role needs `ReadOnlyAccess` policy or at minimum these permissions:
 2. Click **Run Audit** — analyzes all collected data for misconfigurations
 3. View findings grouped by severity (Critical, High, Medium, Low)
 4. Each finding includes remediation steps and CLI commands
+5. Click **Request Fix** on any finding to submit a remediation request
 
-### 6. Export Reports
+### 6. Remediation Center (Owner Approval)
+
+All remediation actions require **owner approval** before execution:
+
+1. Any user can click **Request Fix** on findings (Audit or Threats page)
+2. Request appears in **Remediation Center** with "Pending Approval" status
+3. **Owner reviews** the request and clicks **Approve** or **Reject** (with reason)
+4. After approval, owner clicks **Execute** to run the fix via AWS SDK
+5. System executes the remediation and shows success/failure result
+
+**Flow:** Request → Owner Review → Approve/Reject → Execute → Verify
+
+Supported auto-remediation actions:
+- Close open Security Group rules (0.0.0.0/0)
+- Disable RDS public access
+- Enable S3 bucket encryption
+- Enable GuardDuty threat detection
+
+### 7. Export Reports
 
 From the **Dashboard** or **Report** page:
 - Click the **Export** button
 - Choose format: **PDF**, **Excel**, **CSV**, or **JSON**
 - Report includes all findings, resource inventory, IAM analysis, and AI recommendations
 
-### 7. Multi-Account Management
+### 8. Multi-Account Management
 
 - Onboard multiple AWS/Azure/GCP accounts
 - Switch between accounts using the **dropdown** at the top of the page
 - Each account has independent scan data and findings
 - Overview page aggregates across all accounts
 
-### 8. Account Offboarding
+### 9. Account Offboarding
 
 1. Go to **Accounts**
 2. Click the **trash icon** on the account card

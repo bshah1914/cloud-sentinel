@@ -12,9 +12,9 @@ import {
   Server, Database, Shield, ChevronRight, ChevronDown, Clock, Crosshair,
   Activity, Eye, MapPin, Zap, Target, Copy, CheckCircle2,
   Skull, Network, ArrowRight, Flame, Bug, KeyRound,
-  TrendingDown, Radio
+  TrendingDown, Radio, Wrench, Loader2
 } from 'lucide-react';
-import { getThreats } from '../api';
+import { getThreats, getBase } from '../api';
 import { useToast } from '../components/Toast';
 import Card from '../components/Card';
 import Loader from '../components/Loader';
@@ -114,7 +114,7 @@ function CategoryCard({ category, count, total }) {
 }
 
 export default function Threats() {
-  const { account } = useOutletContext();
+  const { account, token } = useOutletContext();
   const { addToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -124,6 +124,30 @@ export default function Threats() {
   const [expandedThreats, setExpandedThreats] = useState(new Set());
   const [expandedPaths, setExpandedPaths] = useState(new Set([0]));
   const [copiedId, setCopiedId] = useState(null);
+  const [requestingFix, setRequestingFix] = useState(null);
+  const [requestedFixes, setRequestedFixes] = useState(new Set());
+
+  const handleRequestFix = async (threat) => {
+    setRequestingFix(threat.id);
+    try {
+      const res = await fetch(getBase() + '/api/remediation/request', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: threat.title, severity: threat.severity,
+          category: threat.category || 'security',
+          region: threat.region || '', resource: threat.resource || '',
+          description: threat.description || '',
+          remediation: threat.remediation || '',
+          account_name: account,
+        }),
+      });
+      const d = await res.json();
+      if (d.error) { addToast(d.error, 'warning'); }
+      else { addToast('Fix requested — awaiting owner approval', 'success'); setRequestedFixes(prev => new Set([...prev, threat.id])); }
+    } catch { addToast('Failed to request fix', 'error'); }
+    setRequestingFix(null);
+  };
 
   const loadThreats = () => {
     if (!account) { setLoading(false); return; }
@@ -537,10 +561,22 @@ export default function Threats() {
                                 <p className="text-[8px] text-emerald-400 uppercase tracking-[0.15em] font-bold mb-1">Remediation</p>
                                 <p className="text-xs text-text-muted leading-relaxed">{threat.remediation}</p>
                               </div>
-                              <button onClick={(e) => { e.stopPropagation(); copyRemediation(threat.remediation, threat.id); }}
-                                className="p-2 rounded-lg hover:bg-emerald-500/10 text-text-muted hover:text-emerald-400 transition-all flex-shrink-0">
-                                {copiedId === threat.id ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                              </button>
+                              <div className="flex flex-col gap-1.5 flex-shrink-0">
+                                <button onClick={(e) => { e.stopPropagation(); copyRemediation(threat.remediation, threat.id); }}
+                                  className="p-2 rounded-lg hover:bg-emerald-500/10 text-text-muted hover:text-emerald-400 transition-all">
+                                  {copiedId === threat.id ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                                {requestedFixes.has(threat.id) ? (
+                                  <span className="p-2 text-emerald-400"><CheckCircle2 className="w-4 h-4" /></span>
+                                ) : (
+                                  <button onClick={(e) => { e.stopPropagation(); handleRequestFix(threat); }}
+                                    disabled={requestingFix === threat.id}
+                                    className="p-2 rounded-lg hover:bg-amber-500/10 text-text-muted hover:text-amber-400 transition-all disabled:opacity-50"
+                                    title="Request Fix">
+                                    {requestingFix === threat.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </motion.div>

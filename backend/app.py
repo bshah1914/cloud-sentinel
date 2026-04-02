@@ -1514,6 +1514,50 @@ def run_audit_legacy(account_name: str, user: dict = Depends(get_current_user)):
         raise HTTPException(404, f"No data for account '{account_name}'")
 
 
+# ── REMEDIATION REQUEST FROM AUDIT FINDINGS ──────────────────────
+class AuditRemediationRequest(BaseModel):
+    title: str
+    severity: str = "MEDIUM"
+    category: str = "security"
+    region: str = ""
+    resource: str = ""
+    description: str = ""
+    remediation: str = ""
+    account_name: str = ""
+
+@app.post("/api/remediation/request")
+def request_remediation_from_audit(req: AuditRemediationRequest, user: dict = Depends(get_current_user)):
+    """Create a finding in DB and submit remediation request — for audit/threat findings that don't have DB IDs."""
+    from services.remediation import request_remediation as _request
+    db = SessionLocal()
+    try:
+        # Check if finding already exists by title + account
+        existing = db.query(Finding).filter(
+            Finding.title == req.title,
+            Finding.account_id == req.account_name,
+            Finding.status == "open"
+        ).first()
+        if existing:
+            finding_id = existing.id
+        else:
+            finding_id = gen_id()
+            finding = Finding(
+                id=finding_id, org_id=user.get("org_id", "cloudsentinel"),
+                scan_id="audit", account_id=req.account_name,
+                title=req.title, severity=req.severity,
+                category=req.category, region=req.region,
+                resource_type=req.resource, description=req.description,
+                remediation=req.remediation,
+                remediation_cli=req.remediation,
+                status="open",
+            )
+            db.add(finding)
+            db.commit()
+        return _request(finding_id, "auto", user.get("sub"))
+    finally:
+        db.close()
+
+
 # ── REPORT EXPORT ────────────────────────────────────────────────
 from fastapi.responses import Response
 from report_generator import (
