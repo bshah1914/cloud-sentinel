@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Alert Service
+CloudSentrix Enterprise — Alert Service
 Sends notifications via Slack, Email, and Webhooks when security events occur.
 """
 
@@ -26,9 +26,9 @@ def send_slack(webhook_url, title, message, severity="INFO"):
     payload = {
         "attachments": [{
             "color": color_map.get(severity, "#06b6d4"),
-            "title": f":shield: CloudSentinel Alert — {title}",
+            "title": f":shield: CloudSentrix Alert — {title}",
             "text": message,
-            "footer": "CloudSentinel Security Platform",
+            "footer": "CloudSentrix Security Platform",
             "ts": int(datetime.now(timezone.utc).timestamp()),
         }]
     }
@@ -46,12 +46,12 @@ def send_webhook(url, event_type, data):
     payload = {
         "event": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "platform": "CloudSentinel",
+        "platform": "CloudSentrix",
         "data": data,
     }
     try:
         resp = requests.post(url, json=payload, timeout=10,
-                           headers={"Content-Type": "application/json", "X-CloudSentinel-Event": event_type})
+                           headers={"Content-Type": "application/json", "X-CloudSentrix-Event": event_type})
         return resp.status_code < 300
     except Exception:
         return False
@@ -61,9 +61,9 @@ def send_email(to_email, subject, body, smtp_host="localhost", smtp_port=25):
     """Send an email alert (basic SMTP)."""
     try:
         msg = MIMEMultipart()
-        msg["From"] = "alerts@cloudsentinel.io"
+        msg["From"] = "alerts@cloudsentrix.io"
         msg["To"] = to_email
-        msg["Subject"] = f"[CloudSentinel] {subject}"
+        msg["Subject"] = f"[CloudSentrix] {subject}"
         msg.attach(MIMEText(body, "html"))
         with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
             server.send_message(msg)
@@ -132,7 +132,7 @@ def evaluate_alerts(org_id, scan_data):
                     elif channel == "email" and org.alert_email:
                         html_body = f"""
                         <div style="font-family:Arial;padding:20px;background:#0f172a;color:#e2e8f0;border-radius:12px;">
-                            <h2 style="color:#7c3aed;">CloudSentinel Alert</h2>
+                            <h2 style="color:#7c3aed;">CloudSentrix Alert</h2>
                             <h3 style="color:#f59e0b;">{title}</h3>
                             <p>{message}</p>
                             <p style="color:#94a3b8;font-size:12px;">Organization: {org.name}</p>

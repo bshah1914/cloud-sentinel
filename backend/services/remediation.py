@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Remediation Engine with Owner Approval
+CloudSentrix Enterprise — Remediation Engine with Owner Approval
 All remediation actions require owner approval before execution.
 """
 

@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Enterprise API Routes
+CloudSentrix Enterprise — Enterprise API Routes
 Adds: DB-backed scans, audit logs, alerts, schedules, remediation, executive dashboard.
 """
 
@@ -361,7 +361,7 @@ def register_enterprise_routes(app, get_current_user):
         try:
             # Get all orgs or just client's org
             if user.get("user_type") == "owner":
-                orgs = db.query(Organization).filter(Organization.id != "cloudsentinel").all()
+                orgs = db.query(Organization).filter(Organization.id != "cloudsentrix").all()
                 accounts = db.query(CloudAccount).all()
                 all_findings = db.query(Finding).all()
                 all_scans = db.query(Scan).filter(Scan.status == "completed").all()
@@ -428,7 +428,7 @@ def register_enterprise_routes(app, get_current_user):
             raise HTTPException(403, "Owner only")
         db = SessionLocal()
         try:
-            total_orgs = db.query(Organization).filter(Organization.id != "cloudsentinel").count()
+            total_orgs = db.query(Organization).filter(Organization.id != "cloudsentrix").count()
             total_users = db.query(User).count()
             total_accounts = db.query(CloudAccount).count()
             total_scans = db.query(Scan).count()
@@ -437,7 +437,7 @@ def register_enterprise_routes(app, get_current_user):
 
             # MRR calculation
             plan_prices = {"free": 0, "pro": 99, "enterprise": 499}
-            orgs = db.query(Organization).filter(Organization.id != "cloudsentinel").all()
+            orgs = db.query(Organization).filter(Organization.id != "cloudsentrix").all()
             mrr = sum(plan_prices.get(o.plan, 0) for o in orgs)
 
             return {

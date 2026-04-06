@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Audit Log Service
+CloudSentrix Enterprise — Audit Log Service
 Tracks every user action for compliance and security.
 """
 

@@ -1,5 +1,5 @@
 """
-CloudSentinel Multi-Tenant Management
+CloudSentrix Multi-Tenant Management
 Handles organizations (clients), client users, plans, billing, and data isolation.
 """
 

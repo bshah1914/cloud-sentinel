@@ -1,5 +1,5 @@
 """
-CloudSentinel — Database Operations (Single Source of Truth)
+CloudSentrix — Database Operations (Single Source of Truth)
 Replaces all JSON file operations with database queries.
 """
 
@@ -106,7 +106,7 @@ def delete_user(username):
 def get_all_organizations():
     db = SessionLocal()
     try:
-        orgs = db.query(Organization).filter(Organization.id != "cloudsentinel").all()
+        orgs = db.query(Organization).filter(Organization.id != "cloudsentrix").all()
         result = []
         for org in orgs:
             accounts = db.query(CloudAccount).filter(CloudAccount.org_id == org.id).all()
@@ -255,7 +255,7 @@ def delete_client_user(user_id):
 def get_platform_stats():
     db = SessionLocal()
     try:
-        orgs = db.query(Organization).filter(Organization.id != "cloudsentinel").all()
+        orgs = db.query(Organization).filter(Organization.id != "cloudsentrix").all()
         total_mrr = sum(PLANS.get(o.plan, {}).get("price", 0) for o in orgs)
         total_users = db.query(User).filter(User.user_type == "client").count()
         total_scans = db.query(Scan).count()

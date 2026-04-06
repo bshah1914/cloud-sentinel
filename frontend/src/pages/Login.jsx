@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Cloud, Lock, User, Eye, EyeOff, AlertCircle, ArrowRight, Shield, Zap } from 'lucide-react';
 import { useAuth } from '../auth';
@@ -67,12 +68,16 @@ function ParticleField() {
 }
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
+  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  if (user) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -80,6 +85,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(username, password);
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err.message);
     }
@@ -129,8 +135,7 @@ export default function Login() {
             transition={{ delay: 0.25 }}
             className="text-4xl font-black"
           >
-            <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">Cloud</span>
-            <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Sentinel</span>
+            <span className="text-text">Cloud</span><span className="text-blue-500">Sentrix</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}
@@ -258,7 +263,7 @@ export default function Login() {
           transition={{ delay: 0.8 }}
           className="text-center text-xs text-text-muted/50 mt-6"
         >
-          CloudSentinel v3.0
+          CloudSentrix v3.0
         </motion.p>
       </motion.div>
     </div>

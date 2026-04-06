@@ -71,10 +71,10 @@ export default function BrandingSettings() {
               type="text"
               value={branding.product_name}
               onChange={(e) => setBranding({ ...branding, product_name: e.target.value })}
-              placeholder="CloudSentinel"
+              placeholder="CloudSentrix"
               className="w-full bg-surface/60 border border-border/50 rounded-xl px-4 py-3 text-sm text-text placeholder:text-text-muted/40 focus:outline-none focus:border-primary/40"
             />
-            <p className="text-[10px] text-text-muted mt-1.5">Replaces "CloudSentinel" across the entire platform</p>
+            <p className="text-[10px] text-text-muted mt-1.5">Replaces "CloudSentrix" across the entire platform</p>
           </div>
 
           {/* Logo URL */}

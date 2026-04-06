@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Scan Scheduler Service
+CloudSentrix Enterprise — Scan Scheduler Service
 Manages scheduled/recurring scans using background threads.
 """
 

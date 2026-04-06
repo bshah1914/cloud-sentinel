@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Database Seeder
+CloudSentrix Enterprise — Database Seeder
 Seeds the database with initial data: owner user, demo org, plans.
 """
 
@@ -28,9 +28,9 @@ def seed_database():
 
         # 1. Create owner org
         owner_org = Organization(
-            id="cloudsentinel",
-            name="CloudSentinel",
-            slug="cloudsentinel",
+            id="cloudsentrix",
+            name="CloudSentrix",
+            slug="cloudsentrix",
             plan="enterprise",
             max_accounts=999,
             max_scans_month=99999,
@@ -42,11 +42,11 @@ def seed_database():
         admin = User(
             id=gen_id(),
             username="admin",
-            email="admin@cloudsentinel.io",
+            email="admin@cloudsentrix.io",
             password_hash=pwd_context.hash("admin123"),
             role="admin",
             user_type="owner",
-            org_id="cloudsentinel",
+            org_id="cloudsentrix",
         )
         db.add(admin)
 

@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — PDF & CSV Report Generator v3
+CloudSentrix Enterprise — PDF & CSV Report Generator v3
 Tight, professional layout with zero wasted space.
 """
 
@@ -140,7 +140,7 @@ def _footer(canvas, doc):
     canvas.line(M, 22, PW - M, 22)
     canvas.setFont("Helvetica", 6)
     canvas.setFillColor(H(C["mut"]))
-    canvas.drawString(M, 10, f"CloudSentinel Enterprise · Confidential · {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    canvas.drawString(M, 10, f"CloudSentrix Enterprise · Confidential · {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     canvas.drawRightString(PW - M, 10, f"Page {doc.page}")
     canvas.restoreState()
 
@@ -179,7 +179,7 @@ def generate_dashboard_pdf(data, account, provider):
     # ── Header ──
     el.append(_bar())
     el.append(Spacer(1, 6))
-    el.append(Paragraph("CloudSentinel", ss["T1"]))
+    el.append(Paragraph("CloudSentrix", ss["T1"]))
     el.append(Paragraph("Security Dashboard Report", ss["T2"]))
     el.append(Spacer(1, 5))
 
@@ -343,7 +343,7 @@ def generate_dashboard_pdf(data, account, provider):
     el.append(Spacer(1, 12))
     el.append(HRFlowable(width="100%", color=H(C["bdr"]), thickness=0.3))
     el.append(Paragraph(
-        f'<font color="{C["mut"]}" size="5.5">CloudSentinel Enterprise · Confidential · '
+        f'<font color="{C["mut"]}" size="5.5">CloudSentrix Enterprise · Confidential · '
         f'Data reflects infrastructure at time of scan · {datetime.now().strftime("%Y-%m-%d %H:%M UTC")}</font>', ss["Sm"]))
 
     doc.build(el, onFirstPage=_footer, onLaterPages=_footer)
@@ -361,7 +361,7 @@ def generate_audit_pdf(audit_data, account, provider):
 
     el.append(_bar())
     el.append(Spacer(1, 6))
-    el.append(Paragraph("CloudSentinel", ss["T1"]))
+    el.append(Paragraph("CloudSentrix", ss["T1"]))
     el.append(Paragraph("Security Audit Report", ss["T2"]))
     el.append(Spacer(1, 5))
 
@@ -409,7 +409,7 @@ def generate_audit_pdf(audit_data, account, provider):
     el.append(Spacer(1, 12))
     el.append(HRFlowable(width="100%", color=H(C["bdr"]), thickness=0.3))
     el.append(Paragraph(
-        f'<font color="{C["mut"]}" size="5.5">CloudSentinel Enterprise · Confidential · '
+        f'<font color="{C["mut"]}" size="5.5">CloudSentrix Enterprise · Confidential · '
         f'Manual review recommended for critical findings · {datetime.now().strftime("%Y-%m-%d %H:%M UTC")}</font>', ss["Sm"]))
 
     doc.build(el, onFirstPage=_footer, onLaterPages=_footer)
@@ -422,7 +422,7 @@ def generate_audit_pdf(audit_data, account, provider):
 def generate_dashboard_csv(data, account, provider):
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["CloudSentinel Dashboard Report"])
+    w.writerow(["CloudSentrix Dashboard Report"])
     w.writerow([f"Account: {account}", f"Provider: {provider}", f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"])
     w.writerow([])
     w.writerow(["Security Score", data.get("security_score", 0)])
@@ -455,7 +455,7 @@ def generate_dashboard_csv(data, account, provider):
 def generate_audit_csv(audit_data, account, provider):
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["CloudSentinel Audit Report"])
+    w.writerow(["CloudSentrix Audit Report"])
     w.writerow([f"Account: {account}", f"Provider: {provider}", f"Total: {audit_data.get('total', 0)}",
                 f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"])
     w.writerow([])

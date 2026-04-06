@@ -94,7 +94,7 @@ export default function Sidebar({ collapsed, onToggle, activeProvider }) {
               >
                 <h1 className="text-sm font-bold">
                   <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">Cloud</span>
-                  <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Sentinel</span>
+                  <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Sentrix</span>
                 </h1>
                 <p className="text-[9px] text-text-muted/50 tracking-[2px] uppercase">
                   {isClient ? user?.org_name || 'Client Portal' : 'Secure Your Cloud'}
@@ -227,7 +227,7 @@ export default function Sidebar({ collapsed, onToggle, activeProvider }) {
               <div className="rounded-xl bg-gradient-to-br from-primary/15 to-accent/10 border border-primary/10 p-3.5">
                 <div className="flex items-center gap-2 mb-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-primary-light" />
-                  <span className="text-xs font-semibold text-text">CloudSentinel Pro</span>
+                  <span className="text-xs font-semibold text-text">CloudSentrix Pro</span>
                 </div>
                 <p className="text-[10px] text-text-muted leading-relaxed">Multi-cloud scanning with real-time alerts and compliance reports.</p>
               </div>

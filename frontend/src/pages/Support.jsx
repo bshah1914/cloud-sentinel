@@ -37,7 +37,7 @@ const FAQ = [
   { q: 'How do I add a new cloud account?', a: 'Go to Accounts → Add Account. Select your provider (AWS/Azure/GCP), enter the account ID and name, then click Save. After adding, go to Scans to run your first scan.' },
   { q: 'Why does my scan show 0 resources?', a: 'Make sure your credentials have the correct IAM permissions. For AWS, the user needs ReadOnlyAccess or specific service permissions (EC2, S3, IAM, RDS, Lambda, etc.).' },
   { q: 'How is the security score calculated?', a: 'The security score is based on: root MFA status, IAM user MFA coverage, open security groups, public resources, encryption status, and CloudTrail/GuardDuty enablement.' },
-  { q: 'What compliance frameworks are supported?', a: 'CloudSentinel supports 10 frameworks: CIS AWS/Azure/GCP, NIST 800-53, SOC 2, ISO 27001, PCI-DSS, HIPAA, GDPR, and AWS Well-Architected Security Pillar.' },
+  { q: 'What compliance frameworks are supported?', a: 'CloudSentrix supports 10 frameworks: CIS AWS/Azure/GCP, NIST 800-53, SOC 2, ISO 27001, PCI-DSS, HIPAA, GDPR, and AWS Well-Architected Security Pillar.' },
   { q: 'How do I export reports?', a: 'Go to Report page → Click Export Excel or Export PDF. You can also export from Dashboard (CSV/PDF) and Compliance (PDF/CSV/JSON).' },
   { q: 'Can I schedule automatic scans?', a: 'Automatic scheduling is available on the Pro and Enterprise plans. Contact support or upgrade your plan to enable this feature.' },
   { q: 'Is my data secure?', a: 'Yes. Credentials are used only during scans and never stored. All data is kept locally on your server. JWT tokens expire after 8 hours. Passwords are bcrypt hashed.' },
@@ -287,7 +287,7 @@ export default function Support() {
           <div className="text-center mb-6">
             <Star className="w-8 h-8 text-amber-400 mx-auto mb-2" />
             <h2 className="text-lg font-bold text-text">Rate Your Experience</h2>
-            <p className="text-xs text-text-muted mt-1">Help us improve CloudSentinel</p>
+            <p className="text-xs text-text-muted mt-1">Help us improve CloudSentrix</p>
           </div>
 
           {/* Star Rating */}
@@ -304,12 +304,12 @@ export default function Support() {
             <p className="text-center text-xs text-text-muted mb-4">
               {feedback.rating <= 2 ? "We're sorry to hear that. Please tell us how we can improve." :
                feedback.rating <= 4 ? 'Thanks! Any suggestions for improvement?' :
-               'Awesome! We\'re glad you love CloudSentinel!'}
+               'Awesome! We\'re glad you love CloudSentrix!'}
             </p>
           )}
 
           <textarea value={feedback.message} onChange={e => setFeedback({ ...feedback, message: e.target.value })}
-            rows={4} placeholder="Share your thoughts, suggestions, or what you love about CloudSentinel..."
+            rows={4} placeholder="Share your thoughts, suggestions, or what you love about CloudSentrix..."
             className="w-full bg-surface/50 border border-border/50 rounded-xl px-4 py-3 text-sm text-text placeholder:text-text-muted/40 focus:outline-none focus:border-primary/30 transition-all resize-none mb-4" />
 
           <button onClick={handleFeedback}
@@ -324,7 +324,7 @@ export default function Support() {
         <div className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { icon: Mail, title: 'Email Support', detail: 'support@cloudsentinel.io', sub: 'Response within 24 hours', color: '#7c3aed' },
+              { icon: Mail, title: 'Email Support', detail: 'support@cloudsentrix.io', sub: 'Response within 24 hours', color: '#7c3aed' },
               { icon: Phone, title: 'Phone Support', detail: '+1 (800) 555-CLOUD', sub: 'Mon-Fri 9am-6pm EST (Enterprise)', color: '#4ade80' },
               { icon: MessageSquare, title: 'Live Chat', detail: 'Available in-app', sub: 'AI assistant 24/7, human agents on Pro+', color: '#38bdf8' },
             ].map((item, i) => (

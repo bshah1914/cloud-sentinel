@@ -136,7 +136,7 @@ export default function Pricing() {
         </div>
         <h1 className="text-3xl font-black text-text">Choose Your Plan</h1>
         <p className="text-text-muted text-sm mt-2 max-w-lg mx-auto">
-          Secure your cloud infrastructure with CloudSentinel. Start free, upgrade as you grow.
+          Secure your cloud infrastructure with CloudSentrix. Start free, upgrade as you grow.
         </p>
 
         {/* Billing Toggle */}

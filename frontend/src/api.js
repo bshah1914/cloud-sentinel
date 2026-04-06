@@ -166,7 +166,7 @@ export const getReport = (account) => request(`/report/${account}`);
 export const exportReport = (account, format = 'pdf') =>
   downloadFile(
     `/report/${account}/export?format=${format}`,
-    `CloudSentinel-Report-${account}-${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`
+    `CloudSentrix-Report-${account}-${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`
   );
 
 // ── Admin (Owner) APIs ──────────────────────────────────────────

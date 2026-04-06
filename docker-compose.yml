@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: cloudsentinel-backend
+    container_name: cloudsentrix-backend
     ports:
       - "5000:5000"
     volumes:
@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    container_name: cloudsentinel-frontend
+    container_name: cloudsentrix-frontend
     ports:
       - "7070:7070"
     depends_on:

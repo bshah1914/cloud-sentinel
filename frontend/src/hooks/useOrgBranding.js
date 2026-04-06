@@ -5,7 +5,7 @@ let cachedBranding = null;
 export default function useOrgBranding() {
   const [branding, setBranding] = useState(cachedBranding || {
     logo: null,
-    productName: 'CloudSentinel',
+    productName: 'CloudSentrix',
     primaryColor: '#7c3aed',
     colors: null,
   });
@@ -21,7 +21,7 @@ export default function useOrgBranding() {
       .then((data) => {
         const b = {
           logo: data.logo,
-          productName: data.product_name || 'CloudSentinel',
+          productName: data.product_name || 'CloudSentrix',
           primaryColor: data.primary_color || '#7c3aed',
           colors: data.colors,
         };

@@ -48,9 +48,6 @@ export function AuthProvider({ children }) {
     localStorage.setItem('cm_token', data.access_token);
     setToken(data.access_token);
     setUser(data.user);
-    // Redirect to app root after login
-    const basePath = window.location.pathname.match(/^(\/[^/]+)\//)?.[1] || '';
-    window.location.href = basePath + '/';
     return data;
   };
 

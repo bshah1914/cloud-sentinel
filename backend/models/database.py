@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Database Models (SQLAlchemy + PostgreSQL + Redis)
+CloudSentrix Enterprise — Database Models (SQLAlchemy + PostgreSQL + Redis)
 Covers: Users, Organizations, CloudAccounts, Scans, Findings, AuditLog, Alerts, Schedules
 """
 
@@ -25,7 +25,7 @@ if not DATABASE_URL:
     PG_PORT = os.environ.get("PG_PORT", "5432")
     PG_USER = os.environ.get("PG_USER", "brijesh")
     PG_PASS = os.environ.get("PG_PASS", "sentinel123")
-    PG_DB = os.environ.get("PG_DB", "cloudsentinel")
+    PG_DB = os.environ.get("PG_DB", "cloudsentrix")
     pg_url = f"postgresql://{PG_USER}:{PG_PASS}@{PG_HOST}:{PG_PORT}/{PG_DB}"
     try:
         import psycopg2
@@ -33,7 +33,7 @@ if not DATABASE_URL:
         conn.close()
         DATABASE_URL = pg_url
     except Exception:
-        DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'cloudsentinel.db')}"
+        DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'cloudsentrix.db')}"
 
 USE_POSTGRES = "postgresql" in DATABASE_URL
 

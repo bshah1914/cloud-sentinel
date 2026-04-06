@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Multi-Cloud Security Platform
+CloudSentrix Enterprise — Multi-Cloud Security Platform
 FastAPI backend with provider plugin architecture for AWS, Azure, and GCP.
 """
 
@@ -112,7 +112,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 
 
 # ── App Setup ────────────────────────────────────────────────────
-app = FastAPI(title="CloudSentinel Enterprise API", version="3.0.0")
+app = FastAPI(title="CloudSentrix Enterprise API", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -572,18 +572,18 @@ def get_org_branding(user: dict = Depends(get_current_user)):
     try:
         from models.database import SessionLocal, Organization
         db = SessionLocal()
-        org_id = user.get("org_id", "cloudsentinel")
+        org_id = user.get("org_id", "cloudsentrix")
         org = db.query(Organization).filter(Organization.id == org_id).first()
-        result = {"logo": None, "product_name": "CloudSentinel", "primary_color": "#7c3aed", "colors": None}
+        result = {"logo": None, "product_name": "CloudSentrix", "primary_color": "#7c3aed", "colors": None}
         if org:
             result["logo"] = org.branding_logo
-            result["product_name"] = getattr(org, "branding_product_name", None) or "CloudSentinel"
+            result["product_name"] = getattr(org, "branding_product_name", None) or "CloudSentrix"
             result["primary_color"] = org.branding_color or "#7c3aed"
             result["colors"] = getattr(org, "branding_colors", None)
         db.close()
         return result
     except Exception:
-        return {"logo": None, "product_name": "CloudSentinel", "primary_color": "#7c3aed", "colors": None}
+        return {"logo": None, "product_name": "CloudSentrix", "primary_color": "#7c3aed", "colors": None}
 
 @app.put("/api/org/branding")
 def update_org_branding(branding: OrgBrandingUpdate, user: dict = Depends(get_current_user)):
@@ -592,7 +592,7 @@ def update_org_branding(branding: OrgBrandingUpdate, user: dict = Depends(get_cu
     try:
         from models.database import SessionLocal, Organization
         db = SessionLocal()
-        org_id = user.get("org_id", "cloudsentinel")
+        org_id = user.get("org_id", "cloudsentrix")
         org = db.query(Organization).filter(Organization.id == org_id).first()
         if org:
             if branding.branding_colors is not None:
@@ -855,7 +855,7 @@ def list_accounts(user: dict = Depends(get_current_user)):
 @app.post("/api/accounts")
 def add_account(account: AccountIn, user: dict = Depends(get_current_user)):
     """Add cloud account — saves to database."""
-    org_id = user.get("org_id", "cloudsentinel")
+    org_id = user.get("org_id", "cloudsentrix")
     result = db_ops.add_cloud_account(
         name=account.name, provider=account.provider,
         account_id=account.id, org_id=org_id,
@@ -934,7 +934,7 @@ def create_dashboard(req: DashboardCreateRequest, user: dict = Depends(get_curre
     db = SessionLocal()
     try:
         dash = DashboardLayout(
-            id=gen_id(), user_id=user.get("id"), org_id=user.get("org_id", "cloudsentinel"),
+            id=gen_id(), user_id=user.get("id"), org_id=user.get("org_id", "cloudsentrix"),
             name=req.name, layout=req.layout,
         )
         db.add(dash)
@@ -995,7 +995,7 @@ def clone_dashboard(dashboard_id: str, user: dict = Depends(get_current_user)):
         if not src:
             raise HTTPException(404, "Dashboard not found")
         clone = DashboardLayout(
-            id=gen_id(), user_id=user.get("id"), org_id=user.get("org_id", "cloudsentinel"),
+            id=gen_id(), user_id=user.get("id"), org_id=user.get("org_id", "cloudsentrix"),
             name=f"{src.name} (Copy)", layout=src.layout,
         )
         db.add(clone)
@@ -1542,7 +1542,7 @@ def request_remediation_from_audit(req: AuditRemediationRequest, user: dict = De
         else:
             finding_id = gen_id()
             finding = Finding(
-                id=finding_id, org_id=user.get("org_id", "cloudsentinel"),
+                id=finding_id, org_id=user.get("org_id", "cloudsentrix"),
                 scan_id="audit", account_id=req.account_name,
                 title=req.title, severity=req.severity,
                 category=req.category, region=req.region,
@@ -2391,7 +2391,7 @@ def _generate_compliance_pdf(results):
 
     elements = []
     summary = results.get("summary", {})
-    elements.append(Paragraph("CloudSentinel Compliance Report", title_s))
+    elements.append(Paragraph("CloudSentrix Compliance Report", title_s))
     elements.append(Paragraph(f"Account: {results.get('account')} | Scanned: {results.get('scanned_at', '')[:19]} | Score: {summary.get('overall_score', 0)}%", small))
     elements.append(Spacer(1, 10))
 
@@ -2999,11 +2999,11 @@ def export_comprehensive_report(account_name: str, format: str = "pdf",
         content = _generate_excel_report(data)
         return Response(content=content,
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        headers={"Content-Disposition": f'attachment; filename="CloudSentinel-Report-{account_name}-{datetime.now().strftime("%Y%m%d")}.xlsx"'})
+                        headers={"Content-Disposition": f'attachment; filename="CloudSentrix-Report-{account_name}-{datetime.now().strftime("%Y%m%d")}.xlsx"'})
     else:
         content = _generate_comprehensive_pdf(data)
         return Response(content=content, media_type="application/pdf",
-                        headers={"Content-Disposition": f'attachment; filename="CloudSentinel-Report-{account_name}-{datetime.now().strftime("%Y%m%d")}.pdf"'})
+                        headers={"Content-Disposition": f'attachment; filename="CloudSentrix-Report-{account_name}-{datetime.now().strftime("%Y%m%d")}.pdf"'})
 
 
 def _generate_excel_report(data):
@@ -3045,7 +3045,7 @@ def _generate_excel_report(data):
     ws = wb.active
     ws.title = "Executive Summary"
     ws.merge_cells('A1:F1')
-    ws['A1'] = f"CloudSentinel Security Report — {data['account']}"
+    ws['A1'] = f"CloudSentrix Security Report — {data['account']}"
     ws['A1'].font = title_font
     ws['A2'] = f"Generated: {data['generated_at'][:19]}  |  Provider: {data['provider'].upper()}"
     ws['A2'].font = sub_font
@@ -3229,7 +3229,7 @@ def _generate_excel_report(data):
 
     # ── Sheet 7: AI Recommendations ──
     ws7 = wb.create_sheet("AI Recommendations")
-    ws7['A1'] = "CloudSentinel AI — Security Intelligence Report"
+    ws7['A1'] = "CloudSentrix AI — Security Intelligence Report"
     ws7['A1'].font = title_font
     ws7['A2'] = f"WAF Score: {data['waf'].get('overall_score', 0)}%  |  Security Score: {dash.get('security_score', 0)}/100"
     ws7['A2'].font = Font(bold=True, size=11, color='4F46E5')
@@ -3269,7 +3269,7 @@ def _generate_comprehensive_pdf(data):
     # ── Header ──
     el.append(_bar())
     el.append(Spacer(1, 6))
-    el.append(Paragraph("CloudSentinel", ss["T1"]))
+    el.append(Paragraph("CloudSentrix", ss["T1"]))
     el.append(Paragraph("Comprehensive Security Report", ss["T2"]))
     el.append(Spacer(1, 5))
 
@@ -3407,7 +3407,7 @@ def _generate_comprehensive_pdf(data):
     el.append(Spacer(1, 10))
     el.append(HRFlowable(width="100%", color=H(C["bdr"]), thickness=0.3))
     el.append(Paragraph(
-        f'<font color="{C["mut"]}" size="5.5">CloudSentinel Enterprise · Comprehensive Security Report · Confidential · {datetime.now().strftime("%Y-%m-%d %H:%M UTC")}</font>',
+        f'<font color="{C["mut"]}" size="5.5">CloudSentrix Enterprise · Comprehensive Security Report · Confidential · {datetime.now().strftime("%Y-%m-%d %H:%M UTC")}</font>',
         ss["Sm"]))
 
     doc.build(el, onFirstPage=_footer, onLaterPages=_footer)
@@ -3471,7 +3471,7 @@ def health():
     return {
         "status": "ok",
         "version": "3.0.0",
-        "platform": "CloudSentinel Enterprise",
+        "platform": "CloudSentrix Enterprise",
         "providers": registry.provider_ids,
         "accounts_with_data": accounts_with_data,
         "timestamp": datetime.now().isoformat(),

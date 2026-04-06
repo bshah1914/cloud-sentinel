@@ -1,5 +1,5 @@
 /**
- * CloudSentinel Theme Presets
+ * CloudSentrix Theme Presets
  * Each preset defines CSS custom property values that override the defaults in index.css.
  * Category determines whether html.light class is added (for components with hardcoded light checks).
  */

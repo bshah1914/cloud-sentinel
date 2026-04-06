@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Real AWS Scanner Service
+CloudSentrix Enterprise — Real AWS Scanner Service
 Uses boto3 to scan live AWS accounts and store results in database.
 """
 
@@ -35,7 +35,7 @@ def _get_boto_session(account):
         sts = boto3.client("sts",
             aws_access_key_id=account.access_key,
             aws_secret_access_key=account.secret_key)
-        creds = sts.assume_role(RoleArn=account.role_arn, RoleSessionName="CloudSentinel")["Credentials"]
+        creds = sts.assume_role(RoleArn=account.role_arn, RoleSessionName="CloudSentrix")["Credentials"]
         return boto3.Session(
             aws_access_key_id=creds["AccessKeyId"],
             aws_secret_access_key=creds["SecretAccessKey"],

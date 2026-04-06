@@ -1,8 +1,8 @@
-# CloudSentinel v3.0
+# CloudSentrix v3.0
 
 **Enterprise Multi-Cloud Security Platform**
 
-CloudSentinel is a comprehensive cloud security platform for monitoring, auditing, and protecting AWS, Azure, and GCP infrastructure from a single dashboard.
+CloudSentrix is a comprehensive cloud security platform for monitoring, auditing, and protecting AWS, Azure, and GCP infrastructure from a single dashboard.
 
 ## Features
 
@@ -60,7 +60,7 @@ cd ..
 
 ### Step 4: Configure Nginx
 
-Create `/etc/nginx/sites-available/cloudsentinel`:
+Create `/etc/nginx/sites-available/cloudsentrix`:
 
 ```nginx
 server {
@@ -87,7 +87,7 @@ server {
 Enable and reload:
 
 ```bash
-sudo ln -sf /etc/nginx/sites-available/cloudsentinel /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/cloudsentrix /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -102,7 +102,7 @@ uvicorn app:app --host 0.0.0.0 --port 8088
 For production, run in background:
 
 ```bash
-nohup uvicorn app:app --host 0.0.0.0 --port 8088 > /tmp/cloudsentinel.log 2>&1 &
+nohup uvicorn app:app --host 0.0.0.0 --port 8088 > /tmp/cloudsentrix.log 2>&1 &
 ```
 
 ### Step 6: Access the Application
@@ -258,7 +258,7 @@ From the **Dashboard** or **Report** page:
 
 ## Security Notes
 
-- Never commit `cloudsentinel.db` — it contains encrypted credentials
+- Never commit `cloudsentrix.db` — it contains encrypted credentials
 - AWS credentials are stored in the database, not in config files
 - The `.gitignore` excludes sensitive files: DB, logs, account-data, config.json
 - Change the default JWT secret key in production (`SECRET_KEY` in app.py)

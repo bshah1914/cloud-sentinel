@@ -14,5 +14,6 @@ backend/users.json
 venv/
 .venv/
 backend/cloudsentinel.db
+backend/cloudsentrix.db
 backend/logs/
 .claude/

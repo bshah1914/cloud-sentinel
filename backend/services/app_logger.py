@@ -1,5 +1,5 @@
 """
-CloudSentinel Enterprise — Application Logger
+CloudSentrix Enterprise — Application Logger
 File-based rotating logs + structured audit trail.
 """
 
@@ -38,26 +38,26 @@ def _setup_logger(name, filename, level=logging.INFO):
 
 
 # Application log — errors, startup, general events
-app_log = _setup_logger("cloudsentinel.app", "app.log")
+app_log = _setup_logger("cloudsentrix.app", "app.log")
 
 # Access log — all API requests
-access_log = _setup_logger("cloudsentinel.access", "access.log")
+access_log = _setup_logger("cloudsentrix.access", "access.log")
 
 # Auth log — login, logout, failed attempts, token issues
-auth_log = _setup_logger("cloudsentinel.auth", "auth.log")
+auth_log = _setup_logger("cloudsentrix.auth", "auth.log")
 
 # Scan log — scan start, progress, complete, fail
-scan_log = _setup_logger("cloudsentinel.scan", "scan.log")
+scan_log = _setup_logger("cloudsentrix.scan", "scan.log")
 
 # Security log — critical findings, threat alerts, compliance drift
-security_log = _setup_logger("cloudsentinel.security", "security.log", logging.WARNING)
+security_log = _setup_logger("cloudsentrix.security", "security.log", logging.WARNING)
 
 # Export log — report generation
-export_log = _setup_logger("cloudsentinel.export", "export.log")
+export_log = _setup_logger("cloudsentrix.export", "export.log")
 
 
 def log_startup():
     app_log.info("=" * 60)
-    app_log.info("CloudSentinel Enterprise starting up")
+    app_log.info("CloudSentrix Enterprise starting up")
     app_log.info(f"Log directory: {LOG_DIR}")
     app_log.info("=" * 60)

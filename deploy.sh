@@ -2,7 +2,7 @@
 
 echo ""
 echo "  ============================================="
-echo "    CloudSentinel v3.0 - One Click Deployment"
+echo "    CloudSentrix v3.0 - One Click Deployment"
 echo "    Enterprise Multi-Cloud Security Platform"
 echo "  ============================================="
 echo ""
@@ -33,7 +33,7 @@ fi
 echo "  [OK] Build complete"
 
 echo ""
-echo "  [2/3] Starting CloudSentinel..."
+echo "  [2/3] Starting CloudSentrix..."
 docker-compose up -d
 echo "  [OK] Containers started"
 
@@ -43,7 +43,7 @@ sleep 5
 
 echo ""
 echo "  ============================================="
-echo "    CloudSentinel is LIVE!"
+echo "    CloudSentrix is LIVE!"
 echo "  ============================================="
 echo ""
 echo "    URL:    http://192.168.50.183:7070"

@@ -201,7 +201,7 @@ export default function Accounts() {
               <div>
                 <label className="block text-[10px] text-text-muted mb-1.5 uppercase tracking-wider font-medium">Role ARN <span className="text-text-muted/50">(optional)</span></label>
                 <input type="text" value={newAccount.role_arn} onChange={(e) => setNewAccount({ ...newAccount, role_arn: e.target.value })}
-                  placeholder="arn:aws:iam::123456789012:role/CloudSentinel"
+                  placeholder="arn:aws:iam::123456789012:role/CloudSentrix"
                   className="w-full bg-surface/60 border border-border/50 rounded-xl px-3 py-2.5 text-sm text-text placeholder:text-text-muted/40 focus:outline-none focus:border-primary/40 transition-all font-mono" />
               </div>
             </div>
