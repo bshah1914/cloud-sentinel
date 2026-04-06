@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Users, ShieldCheck, Server, KeyRound,
   ShieldAlert, ScanLine, Cloud, ChevronLeft, ChevronRight,
   UserCog, Layers, Sparkles, FileText, ClipboardCheck, BookOpen, Crosshair, Crown, Headphones,
-  Settings, Building2, Eye, ScrollText, Bell, LayoutGrid, Palette, Brain, Monitor, Wrench
+  Settings, Building2, Eye, ScrollText, Bell, LayoutGrid, Palette, Brain, Monitor, Wrench,
+  Activity, Terminal, GitBranch, BellRing, Cpu, ShieldAlert as ShieldWarn
 } from 'lucide-react';
 
 const ownerNav = [
@@ -33,6 +34,12 @@ const ownerNav = [
   { to: '/ai-dashboard', icon: Brain, label: 'AI Dashboard', section: 'dashboards' },
   { to: '/remediation', icon: Wrench, label: 'Remediation', section: 'security' },
   { to: '/branding', icon: Palette, label: 'Branding', section: 'platform' },
+  { to: '/infra-monitoring', icon: Activity, label: 'Infrastructure', section: 'monitoring' },
+  { to: '/logs', icon: Terminal, label: 'Log Explorer', section: 'monitoring' },
+  { to: '/traces', icon: GitBranch, label: 'Traces', section: 'monitoring' },
+  { to: '/monitoring-alerts', icon: BellRing, label: 'Monitoring Alerts', section: 'monitoring' },
+  { to: '/ai-analysis', icon: Cpu, label: 'AI Analysis', section: 'monitoring' },
+  { to: '/security-center', icon: ShieldCheck, label: 'Security Center', section: 'appsecurity' },
 ];
 
 const clientNav = [
@@ -54,6 +61,8 @@ const SECTIONS = {
   compliance: 'Compliance',
   report: 'Reports',
   dashboards: 'Custom Dashboards',
+  monitoring: 'App Monitoring',
+  appsecurity: 'Security Hardening',
   platform: 'Platform',
   account: 'Account',
 };

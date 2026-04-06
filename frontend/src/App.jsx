@@ -30,6 +30,12 @@ import DashboardManager from './pages/DashboardManager';
 import AiDashboard from './pages/AiDashboard';
 import Remediation from './pages/Remediation';
 import KioskMode from './pages/KioskMode';
+import InfraMonitoring from './pages/InfraMonitoring';
+import LogExplorer from './pages/LogExplorer';
+import TraceExplorer from './pages/TraceExplorer';
+import MonitoringAlerts from './pages/MonitoringAlerts';
+import AiAnalysis from './pages/AiAnalysis';
+import SecurityCenter from './pages/SecurityCenter';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -78,6 +84,12 @@ function ProtectedRoutes() {
             <Route path="/branding" element={<BrandingSettings />} />
             <Route path="/ai-dashboard" element={<AiDashboard />} />
             <Route path="/remediation" element={<Remediation />} />
+            <Route path="/infra-monitoring" element={<InfraMonitoring />} />
+            <Route path="/logs" element={<LogExplorer />} />
+            <Route path="/traces" element={<TraceExplorer />} />
+            <Route path="/monitoring-alerts" element={<MonitoringAlerts />} />
+            <Route path="/ai-analysis" element={<AiAnalysis />} />
+            <Route path="/security-center" element={<SecurityCenter />} />
           </>
         )}
 
