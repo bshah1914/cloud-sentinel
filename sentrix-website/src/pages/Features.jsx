@@ -134,7 +134,7 @@ export default function Features() {
         <motion.div {...fadeUp}>
           <h2 className="text-3xl font-bold text-text mb-4">See It In Action</h2>
           <p className="text-text-muted mb-8">Start your free 14-day trial. No credit card required.</p>
-          <a href="/login" className="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-primary to-primary-light text-white font-semibold rounded-xl text-lg hover:shadow-xl hover:shadow-primary/30 transition-all no-underline">
+          <a href="/app/login" className="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-primary to-primary-light text-white font-semibold rounded-xl text-lg hover:shadow-xl hover:shadow-primary/30 transition-all no-underline">
             Start Free Trial <ArrowRight className="w-5 h-5" />
           </a>
         </motion.div>

@@ -9,11 +9,12 @@ import Pricing from './pages/Pricing'
 import Contact from './pages/Contact'
 import Blog from './pages/Blog'
 import Login from './pages/Login'
+import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 
 function AppLayout() {
   const { pathname } = useLocation()
-  const hideNavFooter = pathname === '/login' || pathname === '/dashboard'
+  const hideNavFooter = pathname === '/login' || pathname === '/signup' || pathname === '/dashboard'
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -27,6 +28,7 @@ function AppLayout() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>

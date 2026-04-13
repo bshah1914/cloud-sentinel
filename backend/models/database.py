@@ -186,6 +186,10 @@ class User(Base):
     user_type = Column(String(20), default="client")  # owner, client
     org_id = Column(String(50), ForeignKey("organizations.id"), nullable=True)
     is_active = Column(Boolean, default=True)
+    is_approved = Column(Boolean, default=True)  # False for self-signup users (pending admin approval)
+    company = Column(String(200), nullable=True)
+    phone = Column(String(30), nullable=True)
+    cloud_provider = Column(String(20), nullable=True)  # aws, azure, gcp
     last_login = Column(DateTime, nullable=True)
     mfa_enabled = Column(Boolean, default=False)
     mfa_secret = Column(String(100), nullable=True)

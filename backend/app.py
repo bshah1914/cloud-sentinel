@@ -283,6 +283,15 @@ class UserCreateRequest(BaseModel):
     role: str = "viewer"       # admin, editor, viewer
 
 
+class SignupRequest(BaseModel):
+    name: str
+    email: str
+    company: str = ""
+    phone: str = ""
+    cloud_provider: str = "aws"  # aws, azure, gcp
+    password: str
+
+
 # ── DB Dashboard Helper ──────────────────────────────────────────
 def _dashboard_from_db(account_name: str, provider: str = "aws"):
     """Build dashboard response from V2 scan results stored in database."""
@@ -454,6 +463,10 @@ def login(req: LoginRequest, request: __import__("fastapi").Request = None):
     # Authenticate from database (handles both owner and client users)
     user = _authenticate_user(req.username, req.password)
     if user:
+        # Check if user is approved
+        if not user.get("is_approved", True):
+            auth_log.warning(f"LOGIN_BLOCKED user={req.username} pending_approval ip={ip}")
+            raise HTTPException(403, "Your account is pending admin approval. You'll be notified once approved.")
         user_type = user.get("user_type", "owner")
         org_id = user.get("org_id", "")
         org_name = ""
@@ -508,6 +521,142 @@ def get_me(user: dict = Depends(get_current_user)):
         result["org_id"] = user.get("org_id")
         result["org_name"] = user.get("org_name", "")
     return result
+
+
+# ── Signup (Self-Registration, Pending Approval) ────────────────
+@app.post("/api/auth/signup")
+def signup(req: SignupRequest, request: __import__("fastapi").Request = None):
+    """Register a new user — account is created but requires admin approval before login."""
+    ip = request.client.host if request and request.client else "unknown"
+    name = _sanitize_input(req.name.strip())
+    email = _sanitize_input(req.email.strip().lower())
+    company = _sanitize_input(req.company.strip()) if req.company else ""
+    phone = _sanitize_input(req.phone.strip()) if req.phone else ""
+    password = req.password
+
+    if not name or not email or not password:
+        raise HTTPException(400, "Name, email, and password are required")
+    if len(password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+
+    # Use email as username
+    username = email
+
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+
+        # Check if user exists
+        existing = db.query(DBUser).filter((DBUser.username == username) | (DBUser.email == email)).first()
+        if existing:
+            db.close()
+            raise HTTPException(409, "An account with this email already exists")
+
+        new_user = DBUser(
+            id=str(uuid.uuid4()),
+            username=username,
+            email=email,
+            password_hash=pwd_context.hash(password),
+            role="viewer",
+            user_type="owner",
+            is_active=True,
+            is_approved=False,  # Pending admin approval
+            company=company,
+            phone=phone,
+            cloud_provider=req.cloud_provider,
+        )
+        # Store full name in email field if needed (or use username)
+        db.add(new_user)
+        db.commit()
+        db.close()
+
+        auth_log.info(f"SIGNUP user={username} company={company} ip={ip}")
+        log_action(username=username, action="auth.signup",
+                   details={"email": email, "company": company, "cloud_provider": req.cloud_provider},
+                   ip_address=ip)
+
+        return {
+            "message": "Account created successfully! Your account is pending admin approval. You'll be able to login once approved.",
+            "status": "pending_approval",
+            "email": email,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Signup failed: {str(e)}")
+
+
+# ── Admin: Pending Users Approval ───────────────────────────────
+@app.get("/api/admin/pending-users")
+def get_pending_users(user: dict = Depends(get_current_user)):
+    """Get all users pending approval."""
+    if user.get("user_type") != "owner" or user.get("role") not in ("admin", "owner"):
+        raise HTTPException(403, "Admin only")
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        pending = db.query(DBUser).filter(DBUser.is_approved == False).all()
+        result = [{
+            "id": u.id, "username": u.username, "email": u.email,
+            "company": getattr(u, 'company', ''), "phone": getattr(u, 'phone', ''),
+            "cloud_provider": getattr(u, 'cloud_provider', ''),
+            "created": u.created_at.isoformat() if u.created_at else "",
+        } for u in pending]
+        db.close()
+        return {"pending_users": result, "total": len(result)}
+    except Exception as e:
+        return {"pending_users": [], "total": 0}
+
+
+@app.post("/api/admin/approve-user/{user_id}")
+def approve_user(user_id: str, user: dict = Depends(get_current_user)):
+    """Approve a pending user."""
+    if user.get("user_type") != "owner" or user.get("role") not in ("admin", "owner"):
+        raise HTTPException(403, "Admin only")
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        target = db.query(DBUser).filter(DBUser.id == user_id).first()
+        if not target:
+            db.close()
+            raise HTTPException(404, "User not found")
+        target.is_approved = True
+        db.commit()
+        db.close()
+        log_action(org_id=user.get("org_id"), username=user.get("username"),
+                   action="admin.user_approved", resource_type="user",
+                   details={"approved_user": target.username, "email": target.email})
+        return {"message": f"User '{target.username}' approved successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Approval failed: {str(e)}")
+
+
+@app.post("/api/admin/reject-user/{user_id}")
+def reject_user(user_id: str, user: dict = Depends(get_current_user)):
+    """Reject and delete a pending user."""
+    if user.get("user_type") != "owner" or user.get("role") not in ("admin", "owner"):
+        raise HTTPException(403, "Admin only")
+    try:
+        from models.database import SessionLocal, User as DBUser
+        db = SessionLocal()
+        target = db.query(DBUser).filter(DBUser.id == user_id).first()
+        if not target:
+            db.close()
+            raise HTTPException(404, "User not found")
+        username = target.username
+        db.delete(target)
+        db.commit()
+        db.close()
+        log_action(org_id=user.get("org_id"), username=user.get("username"),
+                   action="admin.user_rejected", resource_type="user",
+                   details={"rejected_user": username})
+        return {"message": f"User '{username}' rejected and removed"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Rejection failed: {str(e)}")
 
 
 # ── Theme Presets ────────────────────────────────────────────────

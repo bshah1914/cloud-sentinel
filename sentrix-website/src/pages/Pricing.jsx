@@ -123,7 +123,7 @@ export default function Pricing() {
                 <span className="text-text-muted">{plan.period}</span>
               </div>
               <a
-                href={plan.name === 'Enterprise' ? '/contact' : '/login'}
+                href={plan.name === 'Enterprise' ? '/contact' : '/app/login'}
                 className={`block text-center px-6 py-3 rounded-xl font-semibold text-sm no-underline transition-all ${
                   plan.popular
                     ? 'bg-gradient-to-r from-primary to-primary-light text-white hover:shadow-lg hover:shadow-primary/25'

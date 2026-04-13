@@ -98,7 +98,7 @@ export default function Home() {
               >
                 <MagneticButton
                   as="a"
-                  href="/login"
+                  href="/signup"
                   className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-primary via-primary-light to-accent text-white font-semibold rounded-2xl text-lg shadow-2xl shadow-primary/30 hover:shadow-primary/50 transition-shadow no-underline"
                 >
                   Start Free Trial
@@ -428,7 +428,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <MagneticButton
                 as="a"
-                href="/login"
+                href="/signup"
                 className="group inline-flex items-center justify-center gap-2 px-10 py-4 bg-gradient-to-r from-primary via-primary-light to-accent text-white font-semibold rounded-2xl text-lg shadow-2xl shadow-primary/40 hover:shadow-primary/60 transition-shadow no-underline"
               >
                 Start Free Trial

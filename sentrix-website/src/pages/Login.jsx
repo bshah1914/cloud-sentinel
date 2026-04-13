@@ -68,7 +68,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/app" replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,7 +76,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(username, password);
-      navigate('/dashboard', { replace: true });
+      navigate('/app', { replace: true });
     } catch (err) {
       setError(err.message);
     }

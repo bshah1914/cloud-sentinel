@@ -50,6 +50,10 @@ def authenticate_user(username, password):
                 "id": user.id, "username": user.username, "email": user.email,
                 "hashed_password": user.password_hash, "role": user.role,
                 "user_type": user.user_type, "org_id": user.org_id,
+                "is_approved": getattr(user, 'is_approved', True),
+                "company": getattr(user, 'company', ''),
+                "phone": getattr(user, 'phone', ''),
+                "cloud_provider": getattr(user, 'cloud_provider', ''),
                 "created": user.created_at.isoformat() if user.created_at else "",
             }
         return None

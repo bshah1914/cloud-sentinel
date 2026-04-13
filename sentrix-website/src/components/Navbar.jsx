@@ -49,10 +49,10 @@ export default function Navbar() {
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <Link to="/login" className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text transition-all no-underline">
+          <a href="/app/login" className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text transition-all no-underline">
             Sign In
-          </Link>
-          <Link to="/login" className="px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/25 transition-all no-underline">
+          </a>
+          <Link to="/signup" className="px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/25 transition-all no-underline">
             Start Free Trial
           </Link>
         </div>
@@ -86,7 +86,10 @@ export default function Navbar() {
                 </Link>
               ))}
               <div className="pt-3 border-t border-border mt-3">
-                <Link to="/login" onClick={() => setOpen(false)} className="block w-full text-center px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white text-sm font-semibold rounded-xl no-underline">
+                <a href="/app/login" className="block w-full text-center px-5 py-2.5 bg-white/5 border border-border text-text text-sm font-medium rounded-xl no-underline mb-2">
+                  Sign In
+                </a>
+                <Link to="/signup" onClick={() => setOpen(false)} className="block w-full text-center px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white text-sm font-semibold rounded-xl no-underline">
                   Start Free Trial
                 </Link>
               </div>
