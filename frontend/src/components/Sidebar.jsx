@@ -8,7 +8,7 @@ import {
   ShieldAlert, ScanLine, Cloud, ChevronLeft, ChevronRight,
   UserCog, Layers, Sparkles, FileText, ClipboardCheck, BookOpen, Crosshair, Crown, Headphones,
   Settings, Building2, Eye, ScrollText, Bell, LayoutGrid, Palette, Brain, Monitor, Wrench,
-  Activity, Terminal, GitBranch, BellRing, Cpu, ShieldAlert as ShieldWarn
+  Activity, Terminal, GitBranch, BellRing, Cpu, ShieldAlert as ShieldWarn, Globe
 } from 'lucide-react';
 
 const ownerNav = [
@@ -36,9 +36,9 @@ const ownerNav = [
   { to: '/branding', icon: Palette, label: 'Branding', section: 'platform' },
   { to: '/infra-monitoring', icon: Activity, label: 'Infrastructure', section: 'monitoring' },
   { to: '/logs', icon: Terminal, label: 'Log Explorer', section: 'monitoring' },
-  { to: '/traces', icon: GitBranch, label: 'Traces', section: 'monitoring' },
   { to: '/monitoring-alerts', icon: BellRing, label: 'Monitoring Alerts', section: 'monitoring' },
   { to: '/ai-analysis', icon: Cpu, label: 'AI Analysis', section: 'monitoring' },
+  { to: '/availability', icon: Globe, label: 'Availability', section: 'monitoring' },
   { to: '/security-center', icon: ShieldCheck, label: 'Security Center', section: 'appsecurity' },
 ];
 

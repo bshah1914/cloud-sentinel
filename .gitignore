@@ -16,4 +16,10 @@ venv/
 backend/cloudsentinel.db
 backend/cloudsentrix.db
 backend/logs/
+backend/alert_rules.json
+backend/alert_events.json
+backend/metric_history.json
+backend/availability_monitors.json
+backend/availability_checks.json
+.wrangler/
 .claude/

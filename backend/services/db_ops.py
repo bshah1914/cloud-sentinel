@@ -327,12 +327,15 @@ def get_cloud_accounts(org_id=None):
 
 
 def add_cloud_account(name, provider, account_id, org_id, access_key=None, secret_key=None, role_arn=None):
+    from .crypto import encrypt
     db = SessionLocal()
     try:
         acc = CloudAccount(
             id=gen_id(), org_id=org_id, name=name, provider=provider,
-            account_id=account_id, access_key=access_key,
-            secret_key=secret_key, role_arn=role_arn,
+            account_id=account_id,
+            access_key=encrypt(access_key),
+            secret_key=encrypt(secret_key),
+            role_arn=encrypt(role_arn),
         )
         db.add(acc)
         db.commit()
@@ -342,20 +345,44 @@ def add_cloud_account(name, provider, account_id, org_id, access_key=None, secre
 
 
 def update_account_credentials(account_db_id, access_key, secret_key, role_arn=None):
+    from .crypto import encrypt
     db = SessionLocal()
     try:
         acc = db.query(CloudAccount).filter(CloudAccount.id == account_db_id).first()
         if not acc:
-            # Try by name
             acc = db.query(CloudAccount).filter(CloudAccount.name == account_db_id).first()
         if acc:
-            acc.access_key = access_key
-            acc.secret_key = secret_key
+            acc.access_key = encrypt(access_key)
+            acc.secret_key = encrypt(secret_key)
             if role_arn:
-                acc.role_arn = role_arn
+                acc.role_arn = encrypt(role_arn)
             db.commit()
             return True
         return False
+    finally:
+        db.close()
+
+
+def migrate_plaintext_credentials():
+    """Encrypt any cloud account credentials still stored as plaintext. Safe to run repeatedly."""
+    from .crypto import encrypt, is_encrypted
+    db = SessionLocal()
+    try:
+        accounts = db.query(CloudAccount).all()
+        changed = 0
+        for acc in accounts:
+            updated = False
+            if acc.access_key and not is_encrypted(acc.access_key):
+                acc.access_key = encrypt(acc.access_key); updated = True
+            if acc.secret_key and not is_encrypted(acc.secret_key):
+                acc.secret_key = encrypt(acc.secret_key); updated = True
+            if acc.role_arn and not is_encrypted(acc.role_arn):
+                acc.role_arn = encrypt(acc.role_arn); updated = True
+            if updated:
+                changed += 1
+        if changed:
+            db.commit()
+        return changed
     finally:
         db.close()
 
