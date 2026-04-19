@@ -30,9 +30,11 @@ AUDIT_OVERRIDE = BASE_DIR / "config" / "audit_config_override.yaml"
 USERS_FILE = BASE_DIR / "backend" / "users.json"
 
 # ── JWT / Auth Config ────────────────────────────────────────────
-SECRET_KEY = "cloudlunar-enterprise-secret-change-in-production-2024"
+SECRET_KEY = os.environ.get("CLOUDSENTRIX_JWT_SECRET",
+                             "cloudlunar-enterprise-secret-change-in-production-2024")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("CLOUDSENTRIX_TOKEN_MINUTES", "480"))  # default 8h
+REFRESH_TOKEN_EXPIRE_MINUTES = int(os.environ.get("CLOUDSENTRIX_REFRESH_MINUTES", "10080"))  # default 7d
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -523,18 +525,50 @@ def login(req: LoginRequest, request: __import__("fastapi").Request = None):
             token_data["org_name"] = org_name
 
         token = _create_token(token_data, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+        refresh = _create_token({"sub": user["username"], "type": "refresh"},
+                                 timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES))
 
         response_user = {"username": user["username"], "role": user["role"], "user_type": user_type}
         if user_type == "client":
             response_user["org_id"] = org_id
             response_user["org_name"] = org_name
 
-        return {"access_token": token, "token_type": "bearer", "user": response_user}
+        return {"access_token": token, "refresh_token": refresh, "token_type": "bearer", "user": response_user}
 
     auth_log.warning(f"LOGIN_FAILED user={req.username} ip={ip}")
     log_action(username=req.username, action="auth.login_failed",
                details={"reason": "invalid_credentials"}, ip_address=ip)
     raise HTTPException(401, "Invalid username or password")
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@app.post("/api/auth/refresh")
+def refresh_token(req: RefreshRequest):
+    """Issue a new access token from a valid refresh token."""
+    try:
+        payload = jwt.decode(req.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(401, "Not a refresh token")
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(401, "Invalid refresh token")
+    except JWTError:
+        raise HTTPException(401, "Invalid or expired refresh token")
+
+    user = db_ops.get_user_by_username(username)
+    if not user:
+        raise HTTPException(401, "User not found")
+
+    new_access = _create_token({
+        "sub": user["username"], "role": user["role"], "user_type": user.get("user_type", "owner"),
+    }, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    new_refresh = _create_token({
+        "sub": user["username"], "type": "refresh",
+    }, timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES))
+    return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}
 
 
 @app.get("/api/auth/me")
@@ -5239,6 +5273,328 @@ def delete_monitoring_alert_rule(rule_id: str, user: dict = Depends(get_current_
     return {"message": "Rule deleted"}
 
 
+# ── Enterprise: Audit Log Export ──────────────────────────────
+@app.get("/api/enterprise/audit-log/export")
+def export_audit_log(fmt: str = "json", limit: int = 10000,
+                     user: dict = Depends(get_current_user)):
+    """Export recent audit log entries as JSON or CSV for SIEM ingestion."""
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    try:
+        from models.database import SessionLocal, AuditLog
+        db = SessionLocal()
+        rows = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).all()
+        entries = [{
+            "timestamp": (r.created_at.isoformat() if r.created_at else ""),
+            "username": r.username or "",
+            "action": r.action or "",
+            "resource_type": getattr(r, "resource_type", "") or "",
+            "resource_id": getattr(r, "resource_id", "") or "",
+            "org_id": r.org_id or "",
+            "ip_address": getattr(r, "ip_address", "") or "",
+            "user_agent": getattr(r, "user_agent", "") or "",
+            "details": getattr(r, "details", None) or {},
+        } for r in rows]
+        db.close()
+    except Exception as e:
+        raise HTTPException(500, f"Export failed: {e}")
+
+    from starlette.responses import Response
+    if fmt == "csv":
+        import csv
+        from io import StringIO
+        buf = StringIO()
+        writer = csv.DictWriter(buf, fieldnames=["timestamp", "username", "action", "resource_type",
+                                                   "resource_id", "org_id", "ip_address", "user_agent", "details"])
+        writer.writeheader()
+        for e in entries:
+            e["details"] = json.dumps(e["details"]) if e["details"] else ""
+            writer.writerow(e)
+        return Response(content=buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=audit-log.csv"})
+    return Response(content=json.dumps(entries, default=str, indent=2),
+                    media_type="application/json",
+                    headers={"Content-Disposition": "attachment; filename=audit-log.json"})
+
+
+# ── Enterprise: Custom Roles (RBAC) ─────────────────────────────
+_custom_roles_file = os.path.join(BASE_DIR, "backend", "custom_roles.json")
+
+
+def _load_roles():
+    try:
+        if os.path.exists(_custom_roles_file):
+            with open(_custom_roles_file) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+
+def _save_roles(roles):
+    try:
+        with open(_custom_roles_file, "w") as f:
+            json.dump(roles, f, indent=2)
+    except Exception:
+        pass
+
+
+class CustomRole(BaseModel):
+    name: str
+    description: str = ""
+    permissions: list[str]  # e.g. ["scan.read", "accounts.write", "*.read"]
+
+
+@app.get("/api/enterprise/roles")
+def list_custom_roles(user: dict = Depends(get_current_user)):
+    built_in = [
+        {"id": "owner", "name": "Owner", "permissions": ["*"], "built_in": True},
+        {"id": "admin", "name": "Admin", "permissions": ["*.read", "*.write", "*.execute"], "built_in": True},
+        {"id": "editor", "name": "Editor", "permissions": ["*.read", "*.write"], "built_in": True},
+        {"id": "viewer", "name": "Viewer", "permissions": ["*.read"], "built_in": True},
+        {"id": "auditor", "name": "Auditor", "permissions": ["audit.read", "compliance.read"], "built_in": True},
+    ]
+    custom = _load_roles()
+    return {"roles": built_in + custom}
+
+
+@app.post("/api/enterprise/roles")
+def create_custom_role(payload: CustomRole, user: dict = Depends(get_current_user)):
+    if user.get("user_type") != "owner" or user.get("role") not in ("owner", "admin"):
+        raise HTTPException(403, "Admin only")
+    roles = _load_roles()
+    role = {
+        "id": f"role-{uuid.uuid4().hex[:8]}",
+        "name": _sanitize_input(payload.name),
+        "description": _sanitize_input(payload.description),
+        "permissions": payload.permissions,
+        "built_in": False,
+        "created_by": user.get("username"),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    roles.append(role)
+    _save_roles(roles)
+    return role
+
+
+@app.delete("/api/enterprise/roles/{role_id}")
+def delete_custom_role(role_id: str, user: dict = Depends(get_current_user)):
+    if user.get("user_type") != "owner" or user.get("role") not in ("owner", "admin"):
+        raise HTTPException(403, "Admin only")
+    roles = [r for r in _load_roles() if r["id"] != role_id]
+    _save_roles(roles)
+    return {"message": "Role deleted"}
+
+
+# ── Enterprise: SSO Configuration ─────────────────────────────
+_sso_config_file = os.path.join(BASE_DIR, "backend", "sso_config.json")
+
+
+class SSOConfig(BaseModel):
+    enabled: bool = False
+    provider: str = "oidc"  # oidc, saml
+    issuer_url: str = ""
+    client_id: str = ""
+    client_secret: str = ""
+    redirect_uri: str = ""
+
+
+@app.get("/api/enterprise/sso")
+def get_sso_config(user: dict = Depends(get_current_user)):
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    try:
+        if os.path.exists(_sso_config_file):
+            with open(_sso_config_file) as f:
+                cfg = json.load(f)
+            # Redact secret
+            if cfg.get("client_secret"):
+                cfg["client_secret"] = "***"
+            return cfg
+    except Exception:
+        pass
+    return {"enabled": False, "provider": "oidc", "issuer_url": "", "client_id": "", "redirect_uri": ""}
+
+
+@app.post("/api/enterprise/sso")
+def set_sso_config(payload: SSOConfig, user: dict = Depends(get_current_user)):
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    cfg = payload.dict()
+    try:
+        # Preserve existing secret if user didn't change it
+        if cfg.get("client_secret") == "***" and os.path.exists(_sso_config_file):
+            with open(_sso_config_file) as f:
+                existing = json.load(f)
+            cfg["client_secret"] = existing.get("client_secret", "")
+        with open(_sso_config_file, "w") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        raise HTTPException(500, f"Save failed: {e}")
+    log_action(org_id=user.get("org_id"), username=user.get("username"),
+               action="enterprise.sso_configured", details={"provider": cfg.get("provider")})
+    return {"message": "SSO config saved"}
+
+
+# ── Enterprise: Platform Health Status ────────────────────────
+@app.get("/api/enterprise/platform-health")
+def platform_health(user: dict = Depends(get_current_user)):
+    """Return health status of all background services."""
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    import psutil as _psutil
+    health = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "uptime_s": int(_time.time() - _psutil.boot_time()) if hasattr(_psutil, "boot_time") else 0,
+        "services": [],
+    }
+    # Alert evaluator
+    try:
+        from services.alert_evaluator import _thread as ae_thread
+        health["services"].append({
+            "name": "alert_evaluator",
+            "running": ae_thread is not None and ae_thread.is_alive(),
+        })
+    except Exception:
+        health["services"].append({"name": "alert_evaluator", "running": False})
+    # Availability monitor
+    try:
+        from services.availability import _thread as av_thread
+        health["services"].append({
+            "name": "availability_monitor",
+            "running": av_thread is not None and av_thread.is_alive(),
+        })
+    except Exception:
+        health["services"].append({"name": "availability_monitor", "running": False})
+    # DB connectivity
+    try:
+        from models.database import SessionLocal
+        from sqlalchemy import text as _text
+        db = SessionLocal()
+        db.execute(_text("SELECT 1"))
+        db.close()
+        health["services"].append({"name": "database", "running": True})
+    except Exception:
+        health["services"].append({"name": "database", "running": False})
+
+    health["overall"] = "healthy" if all(s["running"] for s in health["services"]) else "degraded"
+    return health
+
+
+# ── Deep Monitoring: API / DB / Function Performance ──────────
+@app.get("/api/perf/api-endpoints")
+def get_perf_api_endpoints(account: str = "", user: dict = Depends(get_current_user)):
+    """List load balancers with latency / error-rate metrics from cloud provider."""
+    if not account:
+        return {"load_balancers": [], "total": 0, "note": "Specify ?account=<name>"}
+    org_id = user.get("org_id") if user.get("user_type") == "client" else None
+    creds = _get_account_credentials(account, org_id)
+    if not creds:
+        raise HTTPException(404, "Account not found")
+    from services.perf_monitoring import list_load_balancers
+    lbs = list_load_balancers(creds)
+    total_req = sum(l.get("request_count", 0) or 0 for l in lbs)
+    total_5xx = sum(l.get("error_5xx", 0) or 0 for l in lbs)
+    return {
+        "load_balancers": lbs, "total": len(lbs),
+        "total_requests": total_req, "total_5xx": total_5xx,
+        "overall_error_rate_pct": round((total_5xx / total_req) * 100, 2) if total_req > 0 else 0,
+        "account": account, "provider": creds["provider"],
+    }
+
+
+@app.get("/api/perf/databases")
+def get_perf_databases(account: str = "", user: dict = Depends(get_current_user)):
+    if not account:
+        return {"databases": [], "total": 0, "note": "Specify ?account=<name>"}
+    org_id = user.get("org_id") if user.get("user_type") == "client" else None
+    creds = _get_account_credentials(account, org_id)
+    if not creds:
+        raise HTTPException(404, "Account not found")
+    from services.perf_monitoring import list_databases
+    dbs = list_databases(creds)
+    return {"databases": dbs, "total": len(dbs), "account": account, "provider": creds["provider"]}
+
+
+@app.get("/api/perf/functions")
+def get_perf_functions(account: str = "", user: dict = Depends(get_current_user)):
+    if not account:
+        return {"functions": [], "total": 0, "note": "Specify ?account=<name>"}
+    org_id = user.get("org_id") if user.get("user_type") == "client" else None
+    creds = _get_account_credentials(account, org_id)
+    if not creds:
+        raise HTTPException(404, "Account not found")
+    from services.perf_monitoring import list_functions
+    fns = list_functions(creds)
+    total_inv = sum(f.get("invocations", 0) for f in fns)
+    total_err = sum(f.get("errors", 0) for f in fns)
+    return {
+        "functions": fns, "total": len(fns),
+        "total_invocations": total_inv, "total_errors": total_err,
+        "overall_error_rate_pct": round((total_err / total_inv) * 100, 2) if total_inv > 0 else 0,
+        "account": account, "provider": creds["provider"],
+    }
+
+
+# ── Kubernetes Security (managed clusters) ────────────────────
+@app.get("/api/kubernetes/clusters")
+def list_k8s_clusters(account: str = "", user: dict = Depends(get_current_user)):
+    """List managed K8s clusters (EKS/AKS/GKE) with security posture."""
+    if not account:
+        return {"clusters": [], "total": 0, "note": "Specify ?account=<name>"}
+    org_id = user.get("org_id") if user.get("user_type") == "client" else None
+    creds = _get_account_credentials(account, org_id)
+    if not creds:
+        raise HTTPException(404, f"Cloud account '{account}' not found")
+    from services.k8s_security import list_clusters_for_account
+    clusters = list_clusters_for_account(creds)
+    total_findings = sum(len(c.get("findings", [])) for c in clusters)
+    critical = sum(1 for c in clusters for f in c.get("findings", []) if f.get("severity") == "critical")
+    avg_score = round(sum(c.get("score", 0) for c in clusters) / len(clusters), 1) if clusters else 0
+    return {
+        "clusters": clusters,
+        "total": len(clusters),
+        "total_findings": total_findings,
+        "critical_findings": critical,
+        "avg_score": avg_score,
+        "account": account,
+        "provider": creds["provider"],
+    }
+
+
+@app.get("/api/kubernetes/posture-summary")
+def k8s_posture_summary(user: dict = Depends(get_current_user)):
+    """Aggregate K8s posture across all cloud accounts accessible to the user."""
+    org_id = user.get("org_id") if user.get("user_type") == "client" else None
+    from models.database import SessionLocal, CloudAccount
+    from services.crypto import decrypt
+    from services.k8s_security import list_clusters_for_account
+    db = SessionLocal()
+    q = db.query(CloudAccount)
+    if org_id:
+        q = q.filter(CloudAccount.org_id == org_id)
+    accounts = q.all()
+    summary = []
+    for acc in accounts:
+        creds = {
+            "provider": acc.provider, "account_id": acc.account_id,
+            "access_key": decrypt(acc.access_key), "secret_key": decrypt(acc.secret_key),
+        }
+        if not creds["access_key"]:
+            continue
+        clusters = list_clusters_for_account(creds)
+        if not clusters:
+            continue
+        summary.append({
+            "account": acc.name, "provider": acc.provider,
+            "cluster_count": len(clusters),
+            "avg_score": round(sum(c["score"] for c in clusters) / len(clusters), 1),
+            "critical_findings": sum(1 for c in clusters for f in c.get("findings", []) if f.get("severity") == "critical"),
+        })
+    db.close()
+    return {"summary": summary, "accounts_scanned": len(summary)}
+
+
 # ── Availability Monitoring (real HTTP pings) ──────────────────
 class AvailabilityMonitor(BaseModel):
     name: str
@@ -5402,6 +5758,126 @@ def get_alert_events_endpoint(limit: int = 100, user: dict = Depends(get_current
         return {"events": events, "total": len(events)}
     except Exception as e:
         return {"events": [], "total": 0, "error": str(e)}
+
+
+@app.post("/api/monitoring/alert-events/{event_id}/ack")
+def ack_alert_event(event_id: str, user: dict = Depends(get_current_user)):
+    """Acknowledge an alert event."""
+    from services.alert_evaluator import ALERT_EVENTS_FILE, _load_json, _save_json
+    events = _load_json(ALERT_EVENTS_FILE, [])
+    found = False
+    for e in events:
+        if e.get("id") == event_id:
+            e["ack"] = True
+            e["ack_by"] = user.get("username")
+            e["ack_at"] = datetime.utcnow().isoformat()
+            found = True
+            break
+    if not found:
+        raise HTTPException(404, "Event not found")
+    _save_json(ALERT_EVENTS_FILE, events)
+    return {"message": "Acknowledged"}
+
+
+@app.post("/api/monitoring/alert-events/{event_id}/resolve")
+def resolve_alert_event(event_id: str, user: dict = Depends(get_current_user)):
+    """Mark an alert event as resolved."""
+    from services.alert_evaluator import ALERT_EVENTS_FILE, _load_json, _save_json
+    events = _load_json(ALERT_EVENTS_FILE, [])
+    found = False
+    for e in events:
+        if e.get("id") == event_id:
+            e["resolved"] = True
+            e["resolved_by"] = user.get("username")
+            e["resolved_at"] = datetime.utcnow().isoformat()
+            e["status"] = "resolved"
+            found = True
+            break
+    if not found:
+        raise HTTPException(404, "Event not found")
+    _save_json(ALERT_EVENTS_FILE, events)
+    return {"message": "Resolved"}
+
+
+# ── Notification Channels ──────────────────────────────────────
+class NotificationChannel(BaseModel):
+    type: str  # slack, email, webhook
+    name: str
+    config: dict
+    enabled: bool = True
+
+
+@app.get("/api/notifications/channels")
+def list_notification_channels(user: dict = Depends(get_current_user)):
+    from services.notifier import list_channels
+    channels = list_channels()
+    # Redact secrets in config for display
+    sanitized = []
+    for c in channels:
+        cfg = c.get("config", {}) or {}
+        safe_cfg = {}
+        for k, v in cfg.items():
+            if k in ("webhook_url", "url") and isinstance(v, str) and len(v) > 24:
+                safe_cfg[k] = v[:20] + "..." + v[-6:]
+            else:
+                safe_cfg[k] = v
+        sanitized.append({**c, "config": safe_cfg})
+    return {"channels": sanitized}
+
+
+@app.post("/api/notifications/channels")
+def create_notification_channel(payload: NotificationChannel, user: dict = Depends(get_current_user)):
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    from services.notifier import add_channel
+    if payload.type not in ("slack", "email", "webhook"):
+        raise HTTPException(400, "Invalid channel type")
+    channel = {
+        "id": f"ch-{uuid.uuid4().hex[:8]}",
+        "type": payload.type,
+        "name": _sanitize_input(payload.name),
+        "config": payload.config,
+        "enabled": payload.enabled,
+        "created_by": user.get("username"),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    add_channel(channel)
+    log_action(org_id=user.get("org_id"), username=user.get("username"),
+               action="notifications.channel_created", resource_type="channel",
+               details={"type": channel["type"], "name": channel["name"]})
+    return channel
+
+
+@app.delete("/api/notifications/channels/{channel_id}")
+def delete_notification_channel(channel_id: str, user: dict = Depends(get_current_user)):
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    from services.notifier import delete_channel
+    delete_channel(channel_id)
+    return {"message": "Channel deleted"}
+
+
+@app.post("/api/notifications/channels/{channel_id}/test")
+def test_notification_channel(channel_id: str, user: dict = Depends(get_current_user)):
+    """Send a test message to a specific channel."""
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    from services.notifier import send
+    results = send(
+        subject="CloudSentrix test notification",
+        body=f"This is a test from user {user.get('username')}. If you see this, the channel is working.",
+        severity="info",
+        channel_ids=[channel_id],
+    )
+    return {"results": results}
+
+
+@app.get("/api/notifications/log")
+def get_notification_log(limit: int = 50, user: dict = Depends(get_current_user)):
+    if user.get("user_type") != "owner":
+        raise HTTPException(403, "Owner only")
+    from services.notifier import get_delivery_log
+    return {"log": get_delivery_log(limit=limit)}
 
 
 @app.post("/api/monitoring/alert-rules/evaluate-now")

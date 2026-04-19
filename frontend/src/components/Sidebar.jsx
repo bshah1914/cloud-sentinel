@@ -39,6 +39,12 @@ const ownerNav = [
   { to: '/monitoring-alerts', icon: BellRing, label: 'Monitoring Alerts', section: 'monitoring' },
   { to: '/ai-analysis', icon: Cpu, label: 'AI Analysis', section: 'monitoring' },
   { to: '/availability', icon: Globe, label: 'Availability', section: 'monitoring' },
+  { to: '/api-performance', icon: ShieldAlert, label: 'API Performance', section: 'perf' },
+  { to: '/db-performance', icon: Server, label: 'Database Performance', section: 'perf' },
+  { to: '/function-performance', icon: Sparkles, label: 'Function Performance', section: 'perf' },
+  { to: '/kubernetes', icon: Layers, label: 'Kubernetes', section: 'perf' },
+  { to: '/notifications', icon: Bell, label: 'Notifications', section: 'platform' },
+  { to: '/platform-health', icon: Monitor, label: 'Platform Health', section: 'platform' },
   { to: '/security-center', icon: ShieldCheck, label: 'Security Center', section: 'appsecurity' },
 ];
 
@@ -62,6 +68,7 @@ const SECTIONS = {
   report: 'Reports',
   dashboards: 'Custom Dashboards',
   monitoring: 'App Monitoring',
+  perf: 'Performance',
   appsecurity: 'Security Hardening',
   platform: 'Platform',
   account: 'Account',

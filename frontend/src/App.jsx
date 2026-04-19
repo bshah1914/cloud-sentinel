@@ -36,6 +36,12 @@ import MonitoringAlerts from './pages/MonitoringAlerts';
 import AiAnalysis from './pages/AiAnalysis';
 import SecurityCenter from './pages/SecurityCenter';
 import AvailabilityMonitoring from './pages/AvailabilityMonitoring';
+import Kubernetes from './pages/Kubernetes';
+import ApiPerformance from './pages/ApiPerformance';
+import DatabasePerformance from './pages/DatabasePerformance';
+import FunctionPerformance from './pages/FunctionPerformance';
+import Notifications from './pages/Notifications';
+import PlatformHealth from './pages/PlatformHealth';
 import Loader from './components/Loader';
 
 function ProtectedRoutes() {
@@ -90,6 +96,12 @@ function ProtectedRoutes() {
             <Route path="/ai-analysis" element={<AiAnalysis />} />
             <Route path="/security-center" element={<SecurityCenter />} />
             <Route path="/availability" element={<AvailabilityMonitoring />} />
+            <Route path="/kubernetes" element={<Kubernetes />} />
+            <Route path="/api-performance" element={<ApiPerformance />} />
+            <Route path="/db-performance" element={<DatabasePerformance />} />
+            <Route path="/function-performance" element={<FunctionPerformance />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/platform-health" element={<PlatformHealth />} />
           </>
         )}
 

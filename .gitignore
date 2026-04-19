@@ -23,3 +23,7 @@ backend/availability_monitors.json
 backend/availability_checks.json
 .wrangler/
 .claude/
+backend/notifier_channels.json
+backend/notifier_log.json
+backend/custom_roles.json
+backend/sso_config.json

@@ -272,7 +272,7 @@ def evaluate_once() -> int:
         # Dedupe: skip if this rule already fired in last 5 minutes
         if rule["id"] in recent_by_rule:
             continue
-        events.append({
+        event = {
             "id": f"evt-{int(time.time() * 1000)}",
             "rule_id": rule["id"],
             "rule_name": rule.get("name", rule["id"]),
@@ -284,9 +284,26 @@ def evaluate_once() -> int:
             "condition": op,
             "timestamp": now,
             "status": "firing",
+            "ack": False,
+            "resolved": False,
             "message": f"{rule.get('name')}: {rule.get('metric')} {op} {threshold} (actual: {value:.1f})",
-        })
+        }
+        events.append(event)
         new_events += 1
+
+        # Deliver notifications via configured channels on the rule
+        try:
+            from services import notifier as _notifier
+            channel_ids = rule.get("channels") or None
+            _notifier.send(
+                subject=f"[{event['severity'].upper()}] {event['rule_name']}",
+                body=event["message"] + f"\n\nAccount: {event['account']}\nRule: {event['rule_id']}",
+                severity=event["severity"],
+                channel_ids=channel_ids,
+                payload=event,
+            )
+        except Exception:
+            pass
 
     # Trim history
     if len(events) > MAX_EVENTS_KEPT:
