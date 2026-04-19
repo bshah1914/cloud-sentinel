@@ -4153,6 +4153,8 @@ def get_infra_metrics(account: str = "", user: dict = Depends(get_current_user))
     running = [a for a in agents if a.get("state") == "running"]
     cpu_values = [a["cpu"] for a in running if a.get("cpu") is not None]
     avg_cpu = round(sum(cpu_values) / len(cpu_values), 1) if cpu_values else 0
+    all_regions = _aws_enabled_regions(creds)
+    regions_with_resources = sorted({a.get("region") for a in agents if a.get("region")})
     result = {
         "account": account,
         "provider": "aws",
@@ -4162,7 +4164,9 @@ def get_infra_metrics(account: str = "", user: dict = Depends(get_current_user))
             "stopped": len([a for a in agents if a.get("state") != "running"]),
         },
         "network": {"bytes_in": 0, "bytes_out": 0},
-        "regions_scanned": len(set(a.get("region") for a in agents if a.get("region"))),
+        "regions_scanned": len(all_regions),
+        "regions_with_resources": regions_with_resources,
+        "regions_empty": len(all_regions) - len(regions_with_resources),
         "timestamp": datetime.now().isoformat(),
     }
     _cache_set(cache_key, result)
@@ -4276,6 +4280,33 @@ def _get_account_credentials(account_name: str, org_id: Optional[str] = None):
         }
     except Exception:
         return None
+
+
+def _aws_enabled_regions(creds: dict, filter_list: Optional[list] = None) -> list:
+    """Return ALL enabled AWS regions for this account.
+
+    Cached for 10 minutes so we're not hammering DescribeRegions on every call.
+    `filter_list` (optional) restricts to those names only, if they exist.
+    """
+    import boto3
+    cache_key = f"regions:aws:{hashlib.sha256((creds.get('access_key') or '').encode()).hexdigest()[:16]}"
+    regions = _cache_get(cache_key)
+    if regions is None:
+        try:
+            session = boto3.Session(
+                aws_access_key_id=creds["access_key"],
+                aws_secret_access_key=creds["secret_key"],
+                region_name="us-east-1",
+            )
+            resp = session.client("ec2").describe_regions(AllRegions=False)
+            regions = [r["RegionName"] for r in resp.get("Regions", [])]
+            # Cache region list for 10 minutes
+            _CLOUD_CACHE[cache_key] = {"ts": _time.time() - _CACHE_TTL_SECONDS + 600, "value": regions}
+        except Exception:
+            regions = []
+    if filter_list:
+        regions = [r for r in regions if r in filter_list]
+    return regions
 
 
 def _aws_session(creds: dict, region: str = "us-east-1"):
@@ -4837,33 +4868,31 @@ def _aws_region_agents(creds: dict, region: str):
         return []
 
 
-def _list_aws_compute_instances(creds: dict):
-    """List AWS EC2 instances across regions in PARALLEL using batched CloudWatch calls."""
-    import boto3
+def _list_aws_compute_instances(creds: dict, regions_filter: Optional[list] = None):
+    """List AWS EC2 instances across ALL enabled regions in PARALLEL.
+
+    `regions_filter` — optional list of region names to restrict the scan.
+    """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    # Cache by credential fingerprint + provider
-    cache_key = f"agents:aws:{hashlib.sha256((creds.get('access_key') or '').encode()).hexdigest()[:16]}"
+    # Cache key includes region filter so filtered + unfiltered don't collide
+    filter_tag = ",".join(sorted(regions_filter)) if regions_filter else "all"
+    cache_key = f"agents:aws:{hashlib.sha256((creds.get('access_key') or '').encode()).hexdigest()[:16]}:{filter_tag}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
-    session = _aws_session(creds, "us-east-1")
-    if not session:
-        return []
-    try:
-        ec2_global = session.client("ec2")
-        regions = [r["RegionName"] for r in ec2_global.describe_regions(AllRegions=False)["Regions"]][:10]
-    except Exception:
+    regions = _aws_enabled_regions(creds, regions_filter)
+    if not regions:
         return []
 
     agents: list = []
-    # Parallelize across regions
-    with ThreadPoolExecutor(max_workers=min(8, len(regions))) as pool:
+    # Parallelize across ALL regions (up to 32 concurrent — AWS has ~30 enabled regions)
+    with ThreadPoolExecutor(max_workers=min(32, max(1, len(regions)))) as pool:
         futures = {pool.submit(_aws_region_agents, creds, region): region for region in regions}
         for fut in as_completed(futures):
             try:
-                agents.extend(fut.result(timeout=30))
+                agents.extend(fut.result(timeout=45))
             except Exception:
                 continue
 
@@ -5070,8 +5099,13 @@ def _list_gcp_compute_instances(creds: dict):
 
 
 @app.get("/api/monitoring/agents")
-def get_agents(account: str = "", user: dict = Depends(get_current_user)):
-    """List compute instances from client's cloud account (AWS / Azure / GCP)."""
+def get_agents(account: str = "", regions: str = "",
+               user: dict = Depends(get_current_user)):
+    """List compute instances across ALL enabled cloud regions.
+
+    `regions` — optional comma-separated filter (e.g. `us-east-1,eu-west-1`).
+    If omitted, scans every enabled region on the account.
+    """
     if not account:
         return {"agents": [], "total": 0, "healthy": 0, "warning": 0, "critical": 0,
                 "note": "Specify ?account=<name> to monitor a cloud account"}
@@ -5081,13 +5115,21 @@ def get_agents(account: str = "", user: dict = Depends(get_current_user)):
     if not creds:
         raise HTTPException(404, f"Cloud account '{account}' not found")
 
+    regions_filter = [r.strip() for r in regions.split(",") if r.strip()] if regions else None
+
     provider = creds["provider"]
     if provider == "aws":
-        agents = _list_aws_compute_instances(creds)
+        agents = _list_aws_compute_instances(creds, regions_filter=regions_filter)
+        all_regions = _aws_enabled_regions(creds)
+        scanned_regions = regions_filter if regions_filter else all_regions
     elif provider == "azure":
         agents = _list_azure_compute_instances(creds)
+        all_regions = sorted({a.get("region", "") for a in agents if a.get("region")})
+        scanned_regions = all_regions
     elif provider == "gcp":
         agents = _list_gcp_compute_instances(creds)
+        all_regions = sorted({a.get("region", "") for a in agents if a.get("region")})
+        scanned_regions = all_regions
     else:
         return {"agents": [], "total": 0, "healthy": 0, "warning": 0, "critical": 0,
                 "note": f"Provider '{provider}' not supported"}
@@ -5096,10 +5138,14 @@ def get_agents(account: str = "", user: dict = Depends(get_current_user)):
     healthy = sum(1 for a in running if a["status"] == "healthy")
     warning = sum(1 for a in running if a["status"] == "warning")
     critical = sum(1 for a in running if a["status"] == "critical")
+    regions_with_resources = sorted({a.get("region", "") for a in agents if a.get("region")})
     return {
         "agents": agents, "total": len(agents),
         "running": len(running), "healthy": healthy, "warning": warning, "critical": critical,
         "account": account, "provider": provider,
+        "regions_scanned": len(scanned_regions),
+        "regions_with_resources": regions_with_resources,
+        "all_regions": all_regions if provider == "aws" else None,
     }
 
 
@@ -5896,15 +5942,12 @@ def evaluate_alerts_now(user: dict = Depends(get_current_user)):
 # ── Monitoring: CloudWatch Metric History (real) ───────────────
 def _cloudwatch_fleet_history(creds: dict, metric_name: str = "CPUUtilization",
                               hours: int = 24, region: str = "us-east-1"):
-    """Pull CloudWatch history averaged across all running EC2 instances in the account."""
-    import boto3
+    """Pull CloudWatch history averaged across all running EC2 instances in ALL regions."""
     session = _aws_session(creds, region)
     if not session:
         return []
-    try:
-        ec2_global = session.client("ec2")
-        regions = [r["RegionName"] for r in ec2_global.describe_regions(AllRegions=False)["Regions"]][:5]
-    except Exception:
+    regions = _aws_enabled_regions(creds)
+    if not regions:
         regions = [region]
 
     now = datetime.utcnow()

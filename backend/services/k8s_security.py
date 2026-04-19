@@ -40,7 +40,7 @@ def list_eks_clusters(creds: dict) -> list:
         region_name="us-east-1",
     )
     try:
-        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]][:10]
+        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]]
     except Exception:
         return []
 
@@ -66,10 +66,10 @@ def list_eks_clusters(creds: dict) -> list:
         except Exception:
             return []
 
-    with ThreadPoolExecutor(max_workers=min(8, len(regions))) as pool:
+    with ThreadPoolExecutor(max_workers=min(32, max(1, len(regions)))) as pool:
         for fut in as_completed([pool.submit(_per_region, r) for r in regions]):
             try:
-                clusters.extend(fut.result(timeout=30))
+                clusters.extend(fut.result(timeout=45))
             except Exception:
                 continue
     return clusters

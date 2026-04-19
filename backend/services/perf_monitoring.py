@@ -23,7 +23,7 @@ def list_aws_load_balancers(creds: dict) -> list:
         region_name="us-east-1",
     )
     try:
-        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]][:10]
+        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]]
     except Exception:
         return []
 
@@ -93,7 +93,7 @@ def list_aws_load_balancers(creds: dict) -> list:
         except Exception:
             return []
 
-    with ThreadPoolExecutor(max_workers=min(8, len(regions))) as pool:
+    with ThreadPoolExecutor(max_workers=min(32, max(1, len(regions)))) as pool:
         for fut in as_completed([pool.submit(_region, r) for r in regions]):
             try:
                 lbs.extend(fut.result(timeout=30))
@@ -113,7 +113,7 @@ def list_aws_databases(creds: dict) -> list:
         region_name="us-east-1",
     )
     try:
-        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]][:10]
+        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]]
     except Exception:
         return []
 
@@ -182,7 +182,7 @@ def list_aws_databases(creds: dict) -> list:
         except Exception:
             return []
 
-    with ThreadPoolExecutor(max_workers=min(8, len(regions))) as pool:
+    with ThreadPoolExecutor(max_workers=min(32, max(1, len(regions)))) as pool:
         for fut in as_completed([pool.submit(_region, r) for r in regions]):
             try:
                 dbs.extend(fut.result(timeout=30))
@@ -202,7 +202,7 @@ def list_aws_functions(creds: dict) -> list:
         region_name="us-east-1",
     )
     try:
-        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]][:10]
+        regions = [r["RegionName"] for r in session.client("ec2").describe_regions(AllRegions=False)["Regions"]]
     except Exception:
         return []
 
@@ -278,7 +278,7 @@ def list_aws_functions(creds: dict) -> list:
         except Exception:
             return []
 
-    with ThreadPoolExecutor(max_workers=min(8, len(regions))) as pool:
+    with ThreadPoolExecutor(max_workers=min(32, max(1, len(regions)))) as pool:
         for fut in as_completed([pool.submit(_region, r) for r in regions]):
             try:
                 fns.extend(fut.result(timeout=60))
